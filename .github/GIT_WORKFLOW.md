@@ -1,4 +1,4 @@
-## 5. WORKFLOW RECOMENDADO
+## WORKFLOW RECOMENDADO
 
 ### Ciclo Diario de Trabajo
 
