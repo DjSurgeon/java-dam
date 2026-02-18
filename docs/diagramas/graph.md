@@ -1,3 +1,4 @@
+```mermaid
 graph TB
     U[USUARIO<br/>id, dni, email, rol]
     C[CORTADOR<br/>id, nombre, especialidad]
@@ -16,3 +17,4 @@ graph TB
     style C fill:#45b7d1,color:#fff
     style S fill:#96ceb4,color:#fff
     style N fill:#ffeaa7,color:#000
+```

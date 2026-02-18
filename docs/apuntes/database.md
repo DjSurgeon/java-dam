@@ -328,6 +328,7 @@ CREATE TABLE reservations (
         CHECK (
 			HOUR(start_time) BETWEEN 10 AND 17
 			AND MINUTE(start_time) IN (0, 30)
+        )
         COMMENT 'Horario laboral: servicios inician entre 10:00-17:59',
     
     -- Validación 2: Solo días laborales (Lunes=2 a Viernes=6)

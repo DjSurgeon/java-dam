@@ -1,3 +1,4 @@
+```mermaid
 erDiagram
     USUARIO ||--o{ RESERVA : "realiza"
     CORTADOR ||--o{ RESERVA : "atiende"
@@ -35,7 +36,7 @@ erDiagram
         bigint id PK "Auto-increment"
         varchar(100) nombre "NOT NULL (Corte Jamón, Paleta, Embutido)"
         int duracion_minutos "NOT NULL (120, 60, 30)"
-        decimal(10,2) precio "Informativo (45.00, 25.00, 12.00)"
+        decimal precio "Informativo (45.00, 25.00, 12.00)"
         text descripcion "NULL"
         boolean activo "DEFAULT TRUE"
     }
@@ -63,3 +64,4 @@ erDiagram
         boolean leida "DEFAULT FALSE"
         timestamp fecha_envio "DEFAULT CURRENT_TIMESTAMP"
     }
+```
