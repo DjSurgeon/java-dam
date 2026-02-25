@@ -1557,12 +1557,49 @@ Próxima Issue:
 ```
 
 ---
+¡El código ha quedado **impecable**! 🏆 Has integrado perfectamente los comentarios JavaDoc, la estructura limpia y todas las anotaciones de seguridad y persistencia necesarias.
 
-## 🎉 ¡Issue #6 Completada!
+Para que no tengas que hacer el trabajo dos veces, te he preparado el **bloque de documentación técnica** exacto que debes incluir en la memoria de tu TFG para explicar esta clase. Cópialo y guárdalo en tus apuntes.
 
-Has creado exitosamente la **entidad base más importante** del sistema. User será referenciado por:
-- Carver (relación 1:1)
-- Reservation (relación 1:N)
-- Notification (indirectamente a través de Reservation)
+---
 
-**¿Continuamos con Issue #7 (Carver.java)?** 🎯
+### 📝 Documentación para la Memoria del TFG: Entidad `User`
+
+**[Para incluir en la sección: 5.x Implementación de la Capa de Persistencia (Backend)]**
+
+La clase `User` es la entidad central del sistema y mapea directamente la tabla `users` de la base de datos relacional. Su implementación se ha diseñado siguiendo las mejores prácticas de **Jakarta Persistence API (JPA)** y **Bean Validation**.
+
+* **Mapeo Objeto-Relacional (ORM):** Se ha utilizado la anotación `@Entity` y `@Table(name = "users")` para vincular la clase Java con el esquema de MySQL. El identificador primario (`id`) delega su generación al motor de base de datos mediante `GenerationType.IDENTITY` (Auto-incremental).
+* **Validación de Datos (JSR-380):** Para garantizar la integridad de los datos antes de ejecutar sentencias SQL, se ha implementado un doble escudo de validación. Se utilizan expresiones regulares (`@Pattern`) para forzar el formato del DNI español y de los números de teléfono, además de `@Email`, `@NotBlank` y `@Size` para prevenir desbordamientos o datos nulos.
+* **Gestión de Relaciones Bidireccionales:**
+* **Relación 1:1 con `Carver`:** Se define con `@OneToOne(mappedBy = "user")`, delegando la posesión de la clave foránea a la tabla de cortadores. Se aplican políticas de cascada (`CascadeType.ALL`) y `orphanRemoval = true` para garantizar que, si un usuario pierde su rol de cortador, su perfil profesional se elimine automáticamente.
+* **Relación 1:N con `Reservation`:** Un cliente puede tener múltiples reservas. Se utiliza `FetchType.LAZY` para aplicar el patrón de carga perezosa, evitando saturar la memoria del servidor trayendo el historial completo de reservas a menos que sea explícitamente requerido.
+
+
+* **Optimización y Seguridad:**
+* Se utiliza la librería **Lombok** para reducir el código repetitivo (*boilerplate*), empleando `@Builder.Default` para asegurar los valores por defecto (`Role.CLIENT` e `isActive = true`) al instanciar objetos.
+* Los métodos `equals()` y `hashCode()` han sido sobrescritos para evaluar **únicamente la clave primaria (`id`)**, previniendo problemas de rendimiento al comparar colecciones complejas.
+* El método `toString()` se ha personalizado para excluir datos sensibles como el `passwordHash` y colecciones perezosas que podrían disparar una excepción `LazyInitializationException`.
+
+
+
+---
+
+### 📦 Cierre de la Issue #6 en Git
+
+Para oficializar el trabajo, vamos a hacer el commit. Abre tu terminal y ejecuta:
+
+```bash
+git add src/main/java/com/hambooking/backend/model/entity/User.java
+git commit -m "feat(backend): create JPA User entity with Bean Validation and Role enum. Closes #6"
+git push origin develop
+
+```
+
+Con este paso, la **Issue #6 queda oficialmente completada**. ✅
+
+### 🎯 Siguiente Paso
+
+Siguiendo nuestra hoja de ruta, la entidad más fácil y lógica para continuar ahora es `Service`, ya que no depende de las demás (es una tabla de catálogo).
+
+¿Quieres que te pase el código base de la **Issue #8 (Entidad `Service`)** para que lo revisemos y la dejemos implementada?
