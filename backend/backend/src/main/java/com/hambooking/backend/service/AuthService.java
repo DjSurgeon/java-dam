@@ -62,9 +62,13 @@ public class AuthService {
         if (userRepository.findByEmail(request.getEmail()).isPresent()) {
             throw new InvalidCredentialsException("Este email ya está registrado");
         }
-
-        // 2. Construir el nuevo usuario
+        // 2. Verificar que el DNI no está en uso
+        if (userRepository.findByDni(request.getDni()).isPresent()) {
+            throw new InvalidCredentialsException("Este DNI ya está registrado");
+        }
+        // 3. Construir el nuevo usuario
         User newUser = new User();
+        newUser.setDni(request.getDni());
         newUser.setFirstName(request.getFirstName());
         newUser.setLastName(request.getLastName());
         newUser.setEmail(request.getEmail());

@@ -7,6 +7,13 @@ import jakarta.validation.constraints.Size;
 
 public class RegisterRequestDTO {
 
+    @NotBlank(message = "El DNI no puede estar vacío")
+    @Pattern(
+            regexp = "^[0-9]{8}[A-Za-z]$",
+            message = "El DNI debe tener formato: 12345678A"
+    )
+    private String dni;
+
     @NotBlank(message = "El nombre no puede estar vacío")
     @Size(min = 2, max = 100, message = "El nombre debe tener entre 2 y 100 caracteres")
     private String firstName;
@@ -36,13 +43,18 @@ public class RegisterRequestDTO {
 
     public RegisterRequestDTO() {}
 
-    public RegisterRequestDTO(String firstName, String lastName, String email, String password, String phone) {
+    public RegisterRequestDTO(String dni, String firstName, String lastName,
+                              String email, String password, String phone) {
+        this.dni = dni;
         this.firstName = firstName;
         this.lastName = lastName;
         this.email = email;
         this.password = password;
         this.phone = phone;
     }
+
+    public String getDni() { return dni; }
+    public void setDni(String dni) { this.dni = dni; }
 
     public String getFirstName() { return firstName; }
     public void setFirstName(String firstName) { this.firstName = firstName; }
