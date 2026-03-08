@@ -12,6 +12,7 @@ import com.hambooking.backend.model.entity.Reservation;
 import com.hambooking.backend.model.entity.Service;
 import com.hambooking.backend.model.entity.User;
 import com.hambooking.backend.model.enums.Status;
+import com.hambooking.backend.model.enums.NotificationType;
 import com.hambooking.backend.repository.CarverRepository;
 import com.hambooking.backend.repository.ReservationRepository;
 import com.hambooking.backend.repository.ServiceRepository;
@@ -35,15 +36,18 @@ public class ReservationService {
     private final UserRepository userRepository;
     private final CarverRepository carverRepository;
     private final ServiceRepository serviceRepository;
+    private final NotificationService notificationService;
 
     public ReservationService(ReservationRepository reservationRepository,
                               UserRepository userRepository,
                               CarverRepository carverRepository,
-                              ServiceRepository serviceRepository) {
+                              ServiceRepository serviceRepository,
+                              NotificationService notificationService) {
         this.reservationRepository = reservationRepository;
         this.userRepository = userRepository;
         this.carverRepository = carverRepository;
         this.serviceRepository = serviceRepository;
+        this.notificationService = notificationService;
     }
 
     // ─────────────────────────────────────────
@@ -129,7 +133,7 @@ public class ReservationService {
         reservation.calculateEndTime();
 
         Reservation saved = reservationRepository.save(reservation);
-
+        notificationService.sendReservationNotification(saved, NotificationType.CREATED);
         return toDTO(saved);
     }
 
@@ -191,7 +195,7 @@ public class ReservationService {
         reservation.calculateEndTime();
 
         Reservation updated = reservationRepository.save(reservation);
-
+        notificationService.sendReservationNotification(updated, NotificationType.MODIFIED);
         return toDTO(updated);
     }
 
@@ -215,7 +219,8 @@ public class ReservationService {
         }
 
         reservation.setStatus(Status.CANCELLED);
-        reservationRepository.save(reservation);
+        Reservation cancelled = reservationRepository.save(reservation);
+        notificationService.sendReservationNotification(cancelled, NotificationType.CANCELLED);
     }
 
     // ─────────────────────────────────────────
