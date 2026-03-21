@@ -1,5 +1,9 @@
 package com.hambooking.frontend.controllers;
 
+import com.hambooking.frontend.SessionManager;
+import com.hambooking.frontend.dto.AppDTO;
+import com.hambooking.frontend.service.ApiClient;
+import javafx.application.Platform;
 import javafx.fxml.FXML;
 import javafx.fxml.FXMLLoader;
 import javafx.fxml.Initializable;
@@ -18,16 +22,11 @@ import java.net.URL;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalTime;
+import java.util.List;
 import java.util.ResourceBundle;
 
-/**
- * Controlador de la pantalla Calendario de disponibilidad.
- * Al hacer clic en un slot disponible navega a booking-form.fxml
- * pasando los datos del slot via BookingController.initData().
- */
 public class CalendarController implements Initializable {
 
-    // ── fx:id ────────────────────────────────────────────────────
     @FXML private ComboBox<String> servicioCombo;
     @FXML private DatePicker       fechaPicker;
     @FXML private GridPane         calendarGrid;
@@ -36,22 +35,9 @@ public class CalendarController implements Initializable {
     @FXML private Label            sidebarUserName;
     @FXML private Label            sidebarUserRole;
 
-    private static final String[] SERVICIOS  = {
-            "Corte de Jamon (2h)",
-            "Corte de Paleta (1h)",
-            "Corte de Embutido (30min)"
-    };
-    private static final int[]    DURACIONES = {120, 60, 30};
-    private static final String[] PRECIOS    = {"50,00 EUR", "35,00 EUR", "25,00 EUR"};
-    private static final String[] ESPECIALIDADES = {
-            "Jamon Iberico", "Paleta Iberica", "Embutidos"
-    };
-
-    // Cortadores de ejemplo (en Issue #36 vendran de la API)
-    private static final String[] CORTADORES = {
-            "Carlos Martinez", "Ana Lopez", "Pedro Ruiz"
-    };
-    private static final Long[]   CORTADOR_IDS = {1L, 2L, 3L};
+    // Datos cargados desde la API
+    private List<AppDTO.ServiceResponse> servicios;
+    private List<AppDTO.CarverResponse>  cortadores;
 
     private static final LocalTime HORA_INICIO = LocalTime.of(10, 0);
     private static final LocalTime HORA_FIN    = LocalTime.of(18, 0);
@@ -59,11 +45,13 @@ public class CalendarController implements Initializable {
     // ── Inicializacion ───────────────────────────────────────────
     @Override
     public void initialize(URL location, ResourceBundle resources) {
-        servicioCombo.getItems().addAll(SERVICIOS);
-        servicioCombo.getSelectionModel().selectFirst();
+        // Info del usuario en el sidebar
+        SessionManager session = SessionManager.getInstance();
+        sidebarUserName.setText(session.getFullName());
+        sidebarUserRole.setText(session.isAdmin() ? "Administrador" : "Cliente");
 
+        // Fecha minima: manana
         fechaPicker.setValue(LocalDate.now().plusDays(1));
-
         fechaPicker.setDayCellFactory(picker -> new DateCell() {
             @Override
             public void updateItem(LocalDate date, boolean empty) {
@@ -77,23 +65,65 @@ public class CalendarController implements Initializable {
             }
         });
 
-        servicioCombo.setOnAction(e -> actualizarInfoServicio());
-        actualizarInfoServicio();
+        // Cargar servicios y cortadores desde la API
+        cargarDatosIniciales();
     }
 
-    // ── Handlers ─────────────────────────────────────────────────
+    // ── Carga inicial desde API ──────────────────────────────────
+
+    private void cargarDatosIniciales() {
+        servicioInfoLabel.setText("Cargando servicios...");
+
+        Thread thread = new Thread(() -> {
+            try {
+                List<AppDTO.ServiceResponse> svcs = ApiClient.getInstance()
+                        .getList("/services", AppDTO.ServiceResponse.class);
+                List<AppDTO.CarverResponse> crvs = ApiClient.getInstance()
+                        .getList("/carvers/active", AppDTO.CarverResponse.class);
+
+                Platform.runLater(() -> {
+                    this.servicios   = svcs;
+                    this.cortadores  = crvs;
+
+                    servicioCombo.getItems().clear();
+                    for (AppDTO.ServiceResponse s : svcs) {
+                        servicioCombo.getItems().add(s.getDisplayName());
+                    }
+                    if (!servicioCombo.getItems().isEmpty()) {
+                        servicioCombo.getSelectionModel().selectFirst();
+                        actualizarInfoServicio();
+                    }
+
+                    servicioCombo.setOnAction(e -> actualizarInfoServicio());
+                });
+
+            } catch (ApiClient.ApiException e) {
+                Platform.runLater(() ->
+                        servicioInfoLabel.setText("Error al cargar datos: " + e.getMessage())
+                );
+            }
+        });
+        thread.setDaemon(true);
+        thread.start();
+    }
+
+    // ── Buscar disponibilidad ────────────────────────────────────
 
     @FXML
     private void handleBuscarDisponibilidad() {
         LocalDate fecha = fechaPicker.getValue();
-        if (fecha == null) return;
+        if (fecha == null || servicios == null || cortadores == null) return;
 
-        int servicioIdx  = servicioCombo.getSelectionModel().getSelectedIndex();
-        int duracionMins = DURACIONES[servicioIdx];
+        int idx = servicioCombo.getSelectionModel().getSelectedIndex();
+        if (idx < 0 || idx >= servicios.size()) return;
+
+        AppDTO.ServiceResponse servicio = servicios.get(idx);
 
         calendarGrid.getChildren().clear();
         calendarGrid.getColumnConstraints().clear();
         calendarGrid.getRowConstraints().clear();
+
+        legendInfoLabel.setText("Cargando disponibilidad...");
 
         // Celda vacia (0,0)
         Label emptyHeader = new Label();
@@ -101,78 +131,92 @@ public class CalendarController implements Initializable {
         calendarGrid.add(emptyHeader, 0, 0);
 
         // Cabeceras de cortadores
-        for (int col = 0; col < CORTADORES.length; col++) {
-            VBox header = buildCarverHeader(CORTADORES[col]);
+        for (int col = 0; col < cortadores.size(); col++) {
+            AppDTO.CarverResponse carver = cortadores.get(col);
+            VBox header = buildCarverHeader(carver);
             calendarGrid.add(header, col + 1, 0);
         }
 
-        // Filas de slots
+        // Para cada cortador cargar sus slots en paralelo
+        for (int col = 0; col < cortadores.size(); col++) {
+            final int colFinal = col;
+            AppDTO.CarverResponse carver = cortadores.get(col);
+
+            Thread thread = new Thread(() -> {
+                try {
+                    String endpoint = "/availability?carverId=" + carver.id
+                            + "&date=" + fecha
+                            + "&serviceId=" + servicio.id;
+
+                    List<LocalTime> slotsLibres = ApiClient.getInstance()
+                            .getList(endpoint, LocalTime.class);
+
+                    Platform.runLater(() ->
+                            renderColumnaSlots(colFinal, carver, servicio,
+                                    slotsLibres, fecha)
+                    );
+
+                } catch (ApiClient.ApiException e) {
+                    Platform.runLater(() ->
+                            legendInfoLabel.setText("Error: " + e.getMessage())
+                    );
+                }
+            });
+            thread.setDaemon(true);
+            thread.start();
+        }
+
+        legendInfoLabel.setText(
+                "Servicio: " + servicio.name + "  |  " + servicio.getPrecioStr()
+        );
+    }
+
+    // ── Renderizar columna de slots ──────────────────────────────
+
+    private void renderColumnaSlots(int col,
+                                    AppDTO.CarverResponse carver,
+                                    AppDTO.ServiceResponse servicio,
+                                    List<LocalTime> slotsLibres,
+                                    LocalDate fecha) {
         LocalTime slot = HORA_INICIO;
         int row = 1;
         while (slot.isBefore(HORA_FIN)) {
-            Label horaLabel = new Label(slot.toString());
-            horaLabel.getStyleClass().add("calendar-hour-label");
-            horaLabel.setPrefWidth(55);
-            calendarGrid.add(horaLabel, 0, row);
+            boolean suficiente = !slot.plusMinutes(servicio.durationMinutes).isAfter(HORA_FIN);
+            boolean libre      = slotsLibres.contains(slot);
 
-            for (int col = 0; col < CORTADORES.length; col++) {
-                boolean suficiente = tieneEspacioSuficiente(slot, duracionMins);
-                boolean ocupado    = esOcupado(col, row);
-
-                // Capturamos variables finales para el lambda
-                final int        colFinal         = col;
-                final LocalTime  slotFinal        = slot;
-                final int        servicioIdxFinal = servicioIdx;
-                final int        duracionFinal    = duracionMins;
-
-                Button slotBtn = buildSlotButton(suficiente, ocupado, slot,
-                        () -> handleSlotSeleccionado(
-                                slotFinal, slotFinal.plusMinutes(duracionFinal),
-                                CORTADORES[colFinal], CORTADOR_IDS[colFinal],
-                                SERVICIOS[servicioIdxFinal], PRECIOS[servicioIdxFinal],
-                                ESPECIALIDADES[servicioIdxFinal],
-                                (long)(servicioIdxFinal + 1),
-                                fecha
-                        )
-                );
-                calendarGrid.add(slotBtn, col + 1, row);
-            }
+            final LocalTime slotFinal = slot;
+            Button btn = buildSlotButton(suficiente, libre, () ->
+                    handleSlotSeleccionado(slotFinal,
+                            slotFinal.plusMinutes(servicio.durationMinutes),
+                            carver, servicio, fecha)
+            );
+            calendarGrid.add(btn, col + 1, row);
 
             slot = slot.plusMinutes(30);
             row++;
         }
 
-        legendInfoLabel.setText(
-                "Servicio: " + SERVICIOS[servicioIdx] + "  |  " + PRECIOS[servicioIdx]
-        );
+        // Anadir etiquetas de hora en la primera pasada (col 0)
+        if (col == 0) {
+            LocalTime h = HORA_INICIO;
+            int r = 1;
+            while (h.isBefore(HORA_FIN)) {
+                Label horaLabel = new Label(h.toString());
+                horaLabel.getStyleClass().add("calendar-hour-label");
+                horaLabel.setPrefWidth(55);
+                calendarGrid.add(horaLabel, 0, r);
+                h = h.plusMinutes(30);
+                r++;
+            }
+        }
     }
 
-    // ── Navegacion ───────────────────────────────────────────────
+    // ── Slot seleccionado → booking-form ─────────────────────────
 
-    @FXML private void goToDashboard()     { navigateTo("/com/hambooking/frontend/fxml/client-dashboard.fxml", "HamBooking"); }
-    @FXML private void goToReservations()  { /* TODO Issue #34 */ }
-    @FXML private void goToProfile()       { /* TODO */ }
-    @FXML private void goToNotifications() { /* TODO */ }
-
-    @FXML
-    private void handleLogout() {
-        navigateTo("/com/hambooking/frontend/fxml/login.fxml", "HamBooking - Iniciar sesion");
-    }
-
-    // ── Logica de slots ──────────────────────────────────────────
-
-    /**
-     * Se ejecuta al hacer clic en un slot disponible.
-     * Carga booking-form.fxml e inyecta los datos del slot.
-     */
     private void handleSlotSeleccionado(LocalTime horaInicio,
                                         LocalTime horaFin,
-                                        String cortador,
-                                        Long cortadorId,
-                                        String servicio,
-                                        String precio,
-                                        String especialidad,
-                                        Long servicioId,
+                                        AppDTO.CarverResponse carver,
+                                        AppDTO.ServiceResponse servicio,
                                         LocalDate fecha) {
         try {
             FXMLLoader loader = new FXMLLoader(
@@ -180,37 +224,51 @@ public class CalendarController implements Initializable {
             );
             Parent root = loader.load();
 
-            // Inyectar datos en el BookingController
             BookingController ctrl = loader.getController();
-            ctrl.initData(servicio, precio, cortador, especialidad,
+            ctrl.initData(
+                    servicio.name,
+                    servicio.getPrecioStr(),
+                    carver.getDisplayName(),
+                    carver.specialty != null ? carver.specialty : "General",
                     fecha, horaInicio, horaFin,
-                    cortadorId, servicioId);
+                    carver.id, servicio.id
+            );
 
             Stage stage = (Stage) calendarGrid.getScene().getWindow();
             stage.getScene().setRoot(root);
             stage.setTitle("HamBooking - Confirmar Reserva");
 
         } catch (IOException e) {
-            e.printStackTrace();
+            legendInfoLabel.setText("Error al abrir el formulario.");
         }
     }
 
-    // ── Construccion de componentes del grid ─────────────────────
+    // ── Navegacion ───────────────────────────────────────────────
 
-    private VBox buildCarverHeader(String nombre) {
+    @FXML private void goToDashboard()     { navigateTo("/com/hambooking/frontend/fxml/client-dashboard.fxml", "HamBooking"); }
+    @FXML private void goToReservations()  { /* TODO */ }
+    @FXML private void goToProfile()       { /* TODO */ }
+    @FXML private void goToNotifications() { /* TODO */ }
+    @FXML private void handleLogout() {
+        SessionManager.getInstance().clear();
+        navigateTo("/com/hambooking/frontend/fxml/login.fxml", "HamBooking - Iniciar sesion");
+    }
+
+    // ── Utilidades ───────────────────────────────────────────────
+
+    private VBox buildCarverHeader(AppDTO.CarverResponse carver) {
         VBox box = new VBox(2);
         box.getStyleClass().add("calendar-carver-header");
         box.setPrefWidth(140);
-        Label nameLabel = new Label(nombre);
+        Label nameLabel = new Label("Cortador #" + carver.id);
         nameLabel.setStyle("-fx-font-weight:bold; -fx-font-size:12px;");
-        Label subLabel = new Label("max 3/dia");
+        Label subLabel = new Label(carver.specialty != null ? carver.specialty : "General");
         subLabel.setStyle("-fx-font-size:10px; -fx-text-fill:#9A7B6A;");
         box.getChildren().addAll(nameLabel, subLabel);
         return box;
     }
 
-    private Button buildSlotButton(boolean suficiente, boolean ocupado,
-                                   LocalTime hora, Runnable onClickAction) {
+    private Button buildSlotButton(boolean suficiente, boolean libre, Runnable onClick) {
         Button btn = new Button();
         btn.setPrefWidth(140);
         btn.setPrefHeight(30);
@@ -219,31 +277,23 @@ public class CalendarController implements Initializable {
             btn.setText("-");
             btn.getStyleClass().add("slot-insufficient");
             btn.setDisable(true);
-        } else if (ocupado) {
+        } else if (!libre) {
             btn.setText("Ocupado");
             btn.getStyleClass().add("slot-occupied");
             btn.setDisable(true);
         } else {
             btn.setText("Libre");
             btn.getStyleClass().add("slot-available");
-            btn.setOnAction(e -> onClickAction.run());
+            btn.setOnAction(e -> onClick.run());
         }
         return btn;
     }
 
-    private boolean esOcupado(int col, int row) {
-        return (col == 0 && (row == 1 || row == 2 || row == 3 || row == 4))
-                || (col == 2 && (row == 3 || row == 4 || row == 7 || row == 8));
-    }
-
-    private boolean tieneEspacioSuficiente(LocalTime slot, int duracionMins) {
-        return !slot.plusMinutes(duracionMins).isAfter(HORA_FIN);
-    }
-
     private void actualizarInfoServicio() {
         int idx = servicioCombo.getSelectionModel().getSelectedIndex();
-        if (idx >= 0) {
-            servicioInfoLabel.setText(SERVICIOS[idx] + " | " + PRECIOS[idx]);
+        if (servicios != null && idx >= 0 && idx < servicios.size()) {
+            AppDTO.ServiceResponse s = servicios.get(idx);
+            servicioInfoLabel.setText(s.name + " | " + s.getPrecioStr());
         }
     }
 

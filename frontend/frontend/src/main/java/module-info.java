@@ -4,6 +4,7 @@ module com.hambooking.frontend {
 
     requires org.controlsfx.controls;
     requires com.fasterxml.jackson.databind;
+    requires com.fasterxml.jackson.datatype.jsr310;
 
     // Necesario para HttpClient (ApiClient.java)
     requires java.net.http;

@@ -1,5 +1,9 @@
 package com.hambooking.frontend.controllers;
 
+import com.hambooking.frontend.SessionManager;
+import com.hambooking.frontend.dto.AppDTO;
+import com.hambooking.frontend.service.ApiClient;
+import javafx.application.Platform;
 import javafx.fxml.FXML;
 import javafx.fxml.FXMLLoader;
 import javafx.fxml.Initializable;
@@ -11,35 +15,15 @@ import javafx.stage.Stage;
 
 import java.io.IOException;
 import java.net.URL;
+import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Locale;
 import java.util.ResourceBundle;
 
-/**
- * Controlador del formulario de confirmacion de reserva.
- *
- * Flujo de uso:
- *   1. CalendarController crea un FXMLLoader para booking-form.fxml
- *   2. Llama a controller.initData(...) pasando los datos del slot
- *   3. Cambia la escena a este formulario
- *
- * fx:id declarados en booking-form.fxml:
- *   - lblServicio, lblPrecio
- *   - lblCortador, lblEspecialidad
- *   - lblFecha, lblHora
- *   - notasField
- *   - errorLabel
- *   - btnConfirmar
- *
- * onAction declarados:
- *   - #handleConfirmar
- *   - #handleCancelar
- */
 public class BookingController implements Initializable {
 
-    // ── fx:id ────────────────────────────────────────────────────
     @FXML private Label    lblServicio;
     @FXML private Label    lblPrecio;
     @FXML private Label    lblCortador;
@@ -50,7 +34,7 @@ public class BookingController implements Initializable {
     @FXML private Label    errorLabel;
     @FXML private Button   btnConfirmar;
 
-    // Datos del slot seleccionado (inyectados desde CalendarController)
+    // Datos inyectados desde CalendarController
     private String    servicio;
     private String    precio;
     private String    cortador;
@@ -66,7 +50,6 @@ public class BookingController implements Initializable {
     private static final DateTimeFormatter FMT_HORA =
             DateTimeFormatter.ofPattern("HH:mm");
 
-    // ── Inicializacion ───────────────────────────────────────────
     @Override
     public void initialize(URL location, ResourceBundle resources) {
         errorLabel.setVisible(false);
@@ -74,27 +57,13 @@ public class BookingController implements Initializable {
     }
 
     /**
-     * Inyecta los datos del slot seleccionado en el formulario.
-     * Debe llamarse desde CalendarController justo despues de load().
-     *
-     * Ejemplo de uso en CalendarController:
-     *   FXMLLoader loader = new FXMLLoader(getClass().getResource(".../booking-form.fxml"));
-     *   Parent root = loader.load();
-     *   BookingController ctrl = loader.getController();
-     *   ctrl.initData("Corte de Jamon", "50,00 EUR", "Carlos Martinez",
-     *                 "Jamon Iberico", fecha, LocalTime.of(10,0), LocalTime.of(12,0),
-     *                 1L, 1L);
-     *   stage.getScene().setRoot(root);
+     * Inyecta los datos del slot seleccionado.
+     * Llamado desde CalendarController justo despues de load().
      */
-    public void initData(String servicio,
-                         String precio,
-                         String cortador,
-                         String especialidad,
-                         LocalDate fecha,
-                         LocalTime horaInicio,
-                         LocalTime horaFin,
-                         Long cortadorId,
-                         Long servicioId) {
+    public void initData(String servicio, String precio,
+                         String cortador, String especialidad,
+                         LocalDate fecha, LocalTime horaInicio, LocalTime horaFin,
+                         Long cortadorId, Long servicioId) {
         this.servicio     = servicio;
         this.precio       = precio;
         this.cortador     = cortador;
@@ -105,7 +74,6 @@ public class BookingController implements Initializable {
         this.cortadorId   = cortadorId;
         this.servicioId   = servicioId;
 
-        // Actualizar labels con los datos recibidos
         lblServicio.setText(servicio);
         lblPrecio.setText(precio);
         lblCortador.setText(cortador);
@@ -116,56 +84,66 @@ public class BookingController implements Initializable {
                 + "  (" + calcularDuracion() + ")");
     }
 
-    // ── Handlers ─────────────────────────────────────────────────
-
-    /**
-     * Se ejecuta al pulsar "Confirmar reserva".
-     * TODO Issue #35: llamar a POST /api/reservations con los datos.
-     */
     @FXML
     private void handleConfirmar() {
-        String notas = notasField.getText().trim();
-
-        // Validacion: datos minimos presentes
-        if (servicio == null || cortador == null || fecha == null) {
+        if (servicio == null || cortadorId == null || fecha == null) {
             showError("Faltan datos de la reserva. Vuelve al calendario.");
             return;
         }
 
-        // TODO Issue #35 — ApiClient: POST /api/reservations
-        // CreateReservationDTO dto = new CreateReservationDTO(
-        //     cortadorId, servicioId, fecha, horaInicio, notas
-        // );
-        // ReservationResponseDTO response = reservationService.create(dto);
-        // if (response != null) navigateTo(".../client-dasboard.fxml", "HamBooking");
+        btnConfirmar.setDisable(true);
+        btnConfirmar.setText("Confirmando...");
 
-        // Placeholder hasta Issue #35
-        showError("Reserva pendiente de conexion con API (Issue #35)");
+        String notas   = notasField.getText().trim();
+        Long clientId  = SessionManager.getInstance().getUserId();
+
+        Thread thread = new Thread(() -> {
+            try {
+                AppDTO.CreateReservationRequest request =
+                        new AppDTO.CreateReservationRequest(
+                                clientId, cortadorId, servicioId,
+                                fecha, horaInicio,
+                                notas.isEmpty() ? null : notas
+                        );
+
+                AppDTO.ReservationResponse response = ApiClient.getInstance()
+                        .post("/reservations", request, AppDTO.ReservationResponse.class);
+
+                // Exito: navegar al dashboard del cliente
+                Platform.runLater(() ->
+                        navigateTo("/com/hambooking/frontend/fxml/client-dashboard.fxml",
+                                "HamBooking - Mi Panel")
+                );
+
+            } catch (ApiClient.ApiException e) {
+                Platform.runLater(() -> {
+                    showError(e.getMessage());
+                    btnConfirmar.setDisable(false);
+                    btnConfirmar.setText("Confirmar reserva");
+                });
+            }
+        });
+        thread.setDaemon(true);
+        thread.start();
     }
 
-    /**
-     * Se ejecuta al pulsar "Volver al calendario" o la X.
-     * Vuelve a la pantalla del calendario sin crear reserva.
-     */
     @FXML
     private void handleCancelar() {
         navigateTo("/com/hambooking/frontend/fxml/calendar.fxml",
                 "HamBooking - Nueva Reserva");
     }
 
-    // ── Utilidades privadas ───────────────────────────────────────
+    // ── Utilidades ───────────────────────────────────────────────
 
-    /** Calcula la duracion en horas/minutos para mostrar en el label. */
     private String calcularDuracion() {
         if (horaInicio == null || horaFin == null) return "";
-        long minutos = java.time.Duration.between(horaInicio, horaFin).toMinutes();
+        long minutos = Duration.between(horaInicio, horaFin).toMinutes();
         if (minutos >= 60 && minutos % 60 == 0) {
             return (minutos / 60) + " hora" + (minutos / 60 > 1 ? "s" : "");
         } else if (minutos >= 60) {
             return (minutos / 60) + "h " + (minutos % 60) + "min";
-        } else {
-            return minutos + " minutos";
         }
+        return minutos + " minutos";
     }
 
     private void showError(String mensaje) {
@@ -182,7 +160,7 @@ public class BookingController implements Initializable {
             stage.getScene().setRoot(root);
             stage.setTitle(title);
         } catch (IOException e) {
-            e.printStackTrace();
+            showError("Error al cargar la pantalla.");
         }
     }
 }

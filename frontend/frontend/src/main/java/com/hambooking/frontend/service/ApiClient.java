@@ -1,21 +1,21 @@
 package com.hambooking.frontend.service;
 
+import com.fasterxml.jackson.databind.JavaType;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
+import java.util.List;
 
 /**
- * Cliente HTTP singleton para comunicarse con la API REST del backend.
- *
- * Uso:
- *   ApiClient client = ApiClient.getInstance();
- *   LoginResponse response = client.post("/auth/login", request, LoginResponse.class);
- *
- * La URL base apunta a localhost:8080 donde corre el backend Spring Boot.
+ * Cliente HTTP singleton para la API REST del backend.
+ * Soporta GET, POST, PATCH y listas (arrays JSON).
+ * Incluye JavaTimeModule para serializar LocalDate/LocalTime correctamente.
  */
 public class ApiClient {
 
@@ -30,6 +30,8 @@ public class ApiClient {
                 .connectTimeout(Duration.ofSeconds(5))
                 .build();
         this.objectMapper = new ObjectMapper();
+        this.objectMapper.registerModule(new JavaTimeModule());
+        this.objectMapper.disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
     }
 
     public static ApiClient getInstance() {
@@ -41,15 +43,6 @@ public class ApiClient {
 
     // ── POST ─────────────────────────────────────────────────────
 
-    /**
-     * Envia una peticion POST con cuerpo JSON.
-     *
-     * @param endpoint  ruta relativa, ej: "/auth/login"
-     * @param body      objeto Java que se serializa a JSON
-     * @param responseType clase esperada en la respuesta
-     * @return objeto deserializado de la respuesta
-     * @throws ApiException si el servidor devuelve un error HTTP
-     */
     public <T> T post(String endpoint, Object body, Class<T> responseType) throws ApiException {
         try {
             String json = objectMapper.writeValueAsString(body);
@@ -71,20 +64,12 @@ public class ApiClient {
         } catch (ApiException e) {
             throw e;
         } catch (Exception e) {
-            throw new ApiException("No se pudo conectar con el servidor. Verifica que el backend este corriendo.", 0);
+            throw new ApiException("No se pudo conectar con el servidor.", 0);
         }
     }
 
-    // ── GET ──────────────────────────────────────────────────────
+    // ── GET objeto unico ─────────────────────────────────────────
 
-    /**
-     * Envia una peticion GET.
-     *
-     * @param endpoint     ruta relativa, ej: "/services"
-     * @param responseType clase esperada en la respuesta
-     * @return objeto deserializado de la respuesta
-     * @throws ApiException si el servidor devuelve un error HTTP
-     */
     public <T> T get(String endpoint, Class<T> responseType) throws ApiException {
         try {
             HttpRequest request = HttpRequest.newBuilder()
@@ -103,16 +88,78 @@ public class ApiClient {
         } catch (ApiException e) {
             throw e;
         } catch (Exception e) {
-            throw new ApiException("No se pudo conectar con el servidor. Verifica que el backend este corriendo.", 0);
+            throw new ApiException("No se pudo conectar con el servidor.", 0);
         }
     }
 
-    // ── Manejo de respuestas ─────────────────────────────────────
+    // ── GET lista ────────────────────────────────────────────────
+
+    public <T> List<T> getList(String endpoint, Class<T> elementType) throws ApiException {
+        try {
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(BASE_URL + endpoint))
+                    .header("Accept", "application/json")
+                    .GET()
+                    .timeout(Duration.ofSeconds(10))
+                    .build();
+
+            HttpResponse<String> response = httpClient.send(
+                    request, HttpResponse.BodyHandlers.ofString()
+            );
+
+            if (response.statusCode() >= 200 && response.statusCode() < 300) {
+                JavaType listType = objectMapper.getTypeFactory()
+                        .constructCollectionType(List.class, elementType);
+                return objectMapper.readValue(response.body(), listType);
+            }
+
+            throw new ApiException(
+                    extraerMensajeError(response.body(), response.statusCode()),
+                    response.statusCode()
+            );
+
+        } catch (ApiException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new ApiException("No se pudo conectar con el servidor.", 0);
+        }
+    }
+
+    // ── PATCH ────────────────────────────────────────────────────
+
+    public void patch(String endpoint) throws ApiException {
+        try {
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(BASE_URL + endpoint))
+                    .header("Accept", "application/json")
+                    .method("PATCH", HttpRequest.BodyPublishers.noBody())
+                    .timeout(Duration.ofSeconds(10))
+                    .build();
+
+            HttpResponse<String> response = httpClient.send(
+                    request, HttpResponse.BodyHandlers.ofString()
+            );
+
+            if (response.statusCode() < 200 || response.statusCode() >= 300) {
+                throw new ApiException(
+                        extraerMensajeError(response.body(), response.statusCode()),
+                        response.statusCode()
+                );
+            }
+
+        } catch (ApiException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new ApiException("No se pudo conectar con el servidor.", 0);
+        }
+    }
+
+    // ── Manejo interno ───────────────────────────────────────────
 
     private <T> T handleResponse(HttpResponse<String> response,
                                  Class<T> responseType) throws ApiException {
-        int statusCode = response.statusCode();
-        String body    = response.body();
+        int    statusCode = response.statusCode();
+        String body       = response.body();
 
         if (statusCode >= 200 && statusCode < 300) {
             try {
@@ -122,18 +169,13 @@ public class ApiClient {
             }
         }
 
-        // Intentar extraer el mensaje de error del backend
-        String errorMessage = extraerMensajeError(body, statusCode);
-        throw new ApiException(errorMessage, statusCode);
+        throw new ApiException(extraerMensajeError(body, statusCode), statusCode);
     }
 
     private String extraerMensajeError(String body, int statusCode) {
         try {
-            // El backend devuelve { "status": 401, "message": "...", "timestamp": "..." }
             var node = objectMapper.readTree(body);
-            if (node.has("message")) {
-                return node.get("message").asText();
-            }
+            if (node.has("message")) return node.get("message").asText();
         } catch (Exception ignored) {}
 
         return switch (statusCode) {
@@ -148,12 +190,8 @@ public class ApiClient {
         };
     }
 
-    // ── Excepcion personalizada ───────────────────────────────────
+    // ── Excepcion ────────────────────────────────────────────────
 
-    /**
-     * Excepcion que lanza ApiClient cuando el servidor devuelve un error.
-     * Los controladores la capturan para mostrar el mensaje al usuario.
-     */
     public static class ApiException extends Exception {
         private final int statusCode;
 
@@ -162,8 +200,7 @@ public class ApiClient {
             this.statusCode = statusCode;
         }
 
-        public int getStatusCode() { return statusCode; }
-
+        public int  getStatusCode()        { return statusCode; }
         public boolean isConnectionError() { return statusCode == 0; }
         public boolean isUnauthorized()    { return statusCode == 401; }
         public boolean isConflict()        { return statusCode == 409; }
