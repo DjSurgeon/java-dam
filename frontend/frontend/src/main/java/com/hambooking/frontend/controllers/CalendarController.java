@@ -149,7 +149,7 @@ public class CalendarController implements Initializable {
 
     // ── Navegacion ───────────────────────────────────────────────
 
-    @FXML private void goToDashboard()     { navigateTo("/com/hambooking/frontend/fxml/client-dasboard.fxml", "HamBooking"); }
+    @FXML private void goToDashboard()     { navigateTo("/com/hambooking/frontend/fxml/client-dashboard.fxml", "HamBooking"); }
     @FXML private void goToReservations()  { /* TODO Issue #34 */ }
     @FXML private void goToProfile()       { /* TODO */ }
     @FXML private void goToNotifications() { /* TODO */ }

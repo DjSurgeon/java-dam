@@ -19,7 +19,7 @@ import java.util.ResourceBundle;
 /**
  * Controlador del dashboard del cliente.
  *
- * fx:id declarados en client-dasboard.fxml:
+ * fx:id declarados en client-dashboard.fxml:
  *   Sidebar:
  *     - sidebarUserName, sidebarUserRole
  *   Cabecera:
