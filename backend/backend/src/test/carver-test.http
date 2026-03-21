@@ -3,7 +3,7 @@ POST http://localhost:8080/api/carvers
 Content-Type: application/json
 
 {
-  "userId": 135,
+  "userId": 146,
   "specialty": "Jamón Iberico de bellota",
   "experienceYears": 10,
   "maxHamsPerDay": 2
