@@ -1,5 +1,9 @@
 package com.hambooking.frontend.controllers;
 
+import com.hambooking.frontend.SessionManager;
+import com.hambooking.frontend.dto.AppDTO;
+import com.hambooking.frontend.service.ApiClient;
+import javafx.application.Platform;
 import javafx.beans.property.SimpleStringProperty;
 import javafx.fxml.FXML;
 import javafx.fxml.FXMLLoader;
@@ -15,56 +19,28 @@ import javafx.stage.Stage;
 
 import java.io.IOException;
 import java.net.URL;
+import java.time.format.DateTimeFormatter;
+import java.util.List;
+import java.util.Locale;
 import java.util.ResourceBundle;
 
-/**
- * Controlador del dashboard de administrador.
- *
- * fx:id declarados en admin-dashboard.fxml:
- *
- *   Sidebar:
- *     - sidebarUserName
- *   Cabecera:
- *     - pageTitle, pageBreadcrumb, searchField, btnNuevo
- *   KPIs:
- *     - kpiCortadores, kpiReservasHoy, kpiClientes, kpiPendientes
- *   TabPane:
- *     - mainTabPane
- *     - tabCortadores, tabUsuarios, tabReservas, tabNotificaciones, tabEstadisticas
- *   Tabla cortadores:
- *     - cortadoresTable, cColNombre, cColDni, cColEmail,
- *       cColEspecialidad, cColExperiencia, cColEstado, cColAcciones
- *   Tabla usuarios:
- *     - usuariosTable, uColNombre, uColDni, uColEmail,
- *       uColTelefono, uColEstado, uColAcciones
- *   Tabla reservas:
- *     - reservasTable, rColFecha, rColCliente, rColCortador,
- *       rColServicio, rColHora, rColEstado, rColAcciones
- *   Tabla notificaciones:
- *     - notificacionesTable, nColFecha, nColDestinatario, nColTipo, nColAsunto
- *
- * onAction declarados:
- *   - #showTabCortadores, #showTabUsuarios, #showTabReservas
- *   - #showTabNotificaciones, #showTabEstadisticas
- *   - #handleNuevo, #handleLogout
- */
 public class AdminDashboardController implements Initializable {
 
-    // ── Sidebar ──────────────────────────────────────────────────
+    // ── Sidebar ──────────────────────────────────────────────────────────
     @FXML private Label sidebarUserName;
 
-    // ── Cabecera ─────────────────────────────────────────────────
+    // ── Cabecera ─────────────────────────────────────────────────────────
     @FXML private Label     pageTitle;
     @FXML private Label     pageBreadcrumb;
     @FXML private TextField searchField;
 
-    // ── KPIs ─────────────────────────────────────────────────────
+    // ── KPIs ─────────────────────────────────────────────────────────────
     @FXML private Label kpiCortadores;
     @FXML private Label kpiReservasHoy;
     @FXML private Label kpiClientes;
     @FXML private Label kpiPendientes;
 
-    // ── TabPane ───────────────────────────────────────────────────
+    // ── TabPane ──────────────────────────────────────────────────────────
     @FXML private TabPane mainTabPane;
     @FXML private Tab     tabCortadores;
     @FXML private Tab     tabUsuarios;
@@ -72,180 +48,214 @@ public class AdminDashboardController implements Initializable {
     @FXML private Tab     tabNotificaciones;
     @FXML private Tab     tabEstadisticas;
 
-    // ── Tabla cortadores ─────────────────────────────────────────
-    @FXML private TableView<String[]>           cortadoresTable;
-    @FXML private TableColumn<String[], String> cColNombre;
-    @FXML private TableColumn<String[], String> cColDni;
-    @FXML private TableColumn<String[], String> cColEmail;
-    @FXML private TableColumn<String[], String> cColEspecialidad;
-    @FXML private TableColumn<String[], String> cColExperiencia;
-    @FXML private TableColumn<String[], String> cColEstado;
-    @FXML private TableColumn<String[], String> cColAcciones;
+    // ── Tabla cortadores ─────────────────────────────────────────────────
+    @FXML private TableView<AppDTO.CarverResponse>           cortadoresTable;
+    @FXML private TableColumn<AppDTO.CarverResponse, String> cColNombre;
+    @FXML private TableColumn<AppDTO.CarverResponse, String> cColDni;
+    @FXML private TableColumn<AppDTO.CarverResponse, String> cColEmail;
+    @FXML private TableColumn<AppDTO.CarverResponse, String> cColEspecialidad;
+    @FXML private TableColumn<AppDTO.CarverResponse, String> cColExperiencia;
+    @FXML private TableColumn<AppDTO.CarverResponse, String> cColEstado;
+    @FXML private TableColumn<AppDTO.CarverResponse, String> cColAcciones;
 
-    // ── Tabla usuarios ───────────────────────────────────────────
-    @FXML private TableView<String[]>           usuariosTable;
-    @FXML private TableColumn<String[], String> uColNombre;
-    @FXML private TableColumn<String[], String> uColDni;
-    @FXML private TableColumn<String[], String> uColEmail;
-    @FXML private TableColumn<String[], String> uColTelefono;
-    @FXML private TableColumn<String[], String> uColEstado;
-    @FXML private TableColumn<String[], String> uColAcciones;
+    // ── Tabla usuarios ───────────────────────────────────────────────────
+    @FXML private TableView<AppDTO.UserResponse>           usuariosTable;
+    @FXML private TableColumn<AppDTO.UserResponse, String> uColNombre;
+    @FXML private TableColumn<AppDTO.UserResponse, String> uColDni;
+    @FXML private TableColumn<AppDTO.UserResponse, String> uColEmail;
+    @FXML private TableColumn<AppDTO.UserResponse, String> uColTelefono;
+    @FXML private TableColumn<AppDTO.UserResponse, String> uColEstado;
+    @FXML private TableColumn<AppDTO.UserResponse, String> uColAcciones;
 
-    // ── Tabla reservas ───────────────────────────────────────────
-    @FXML private TableView<String[]>           reservasTable;
-    @FXML private TableColumn<String[], String> rColFecha;
-    @FXML private TableColumn<String[], String> rColCliente;
-    @FXML private TableColumn<String[], String> rColCortador;
-    @FXML private TableColumn<String[], String> rColServicio;
-    @FXML private TableColumn<String[], String> rColHora;
-    @FXML private TableColumn<String[], String> rColEstado;
-    @FXML private TableColumn<String[], String> rColAcciones;
+    // ── Tabla reservas ───────────────────────────────────────────────────
+    @FXML private TableView<AppDTO.ReservationResponse>           reservasTable;
+    @FXML private TableColumn<AppDTO.ReservationResponse, String> rColFecha;
+    @FXML private TableColumn<AppDTO.ReservationResponse, String> rColCliente;
+    @FXML private TableColumn<AppDTO.ReservationResponse, String> rColCortador;
+    @FXML private TableColumn<AppDTO.ReservationResponse, String> rColServicio;
+    @FXML private TableColumn<AppDTO.ReservationResponse, String> rColHora;
+    @FXML private TableColumn<AppDTO.ReservationResponse, String> rColEstado;
+    @FXML private TableColumn<AppDTO.ReservationResponse, String> rColAcciones;
 
-    // ── Tabla notificaciones ─────────────────────────────────────
-    @FXML private TableView<String[]>           notificacionesTable;
-    @FXML private TableColumn<String[], String> nColFecha;
-    @FXML private TableColumn<String[], String> nColDestinatario;
-    @FXML private TableColumn<String[], String> nColTipo;
-    @FXML private TableColumn<String[], String> nColAsunto;
+    // ── Tabla notificaciones ─────────────────────────────────────────────
+    @FXML private TableView<AppDTO.NotificationResponse>           notificacionesTable;
+    @FXML private TableColumn<AppDTO.NotificationResponse, String> nColFecha;
+    @FXML private TableColumn<AppDTO.NotificationResponse, String> nColDestinatario;
+    @FXML private TableColumn<AppDTO.NotificationResponse, String> nColTipo;
+    @FXML private TableColumn<AppDTO.NotificationResponse, String> nColAsunto;
 
-    // ── Inicializacion ───────────────────────────────────────────
+    private static final DateTimeFormatter FMT_DATETIME =
+            DateTimeFormatter.ofPattern("dd MMM yyyy HH:mm", new Locale("es", "ES"));
+    private static final DateTimeFormatter FMT_FECHA =
+            DateTimeFormatter.ofPattern("dd MMM yyyy", new Locale("es", "ES"));
+
+    // ── Inicializacion ───────────────────────────────────────────────────
     @Override
     public void initialize(URL location, ResourceBundle resources) {
+        sidebarUserName.setText(SessionManager.getInstance().getFullName());
+
         configurarTablaCortadores();
         configurarTablaUsuarios();
         configurarTablaReservas();
         configurarTablaNotificaciones();
-        cargarDatosEjemplo();
-        actualizarKpis();
+
+        cargarDatos();
     }
 
-    // ── Configuracion de columnas ────────────────────────────────
+    // ── Configuracion de columnas ────────────────────────────────────────
 
     private void configurarTablaCortadores() {
-        cColNombre.setCellValueFactory(      d -> new SimpleStringProperty(d.getValue()[0]));
-        cColDni.setCellValueFactory(         d -> new SimpleStringProperty(d.getValue()[1]));
-        cColEmail.setCellValueFactory(       d -> new SimpleStringProperty(d.getValue()[2]));
-        cColEspecialidad.setCellValueFactory(d -> new SimpleStringProperty(d.getValue()[3]));
-        cColExperiencia.setCellValueFactory( d -> new SimpleStringProperty(d.getValue()[4]));
-        cColEstado.setCellValueFactory(      d -> new SimpleStringProperty(d.getValue()[5]));
-        cColAcciones.setCellValueFactory(    d -> new SimpleStringProperty("Editar | Desactivar"));
+        cColNombre.setCellValueFactory(d -> new SimpleStringProperty(
+                d.getValue().firstName + " " + d.getValue().lastName));
+        cColDni.setCellValueFactory(d -> new SimpleStringProperty(
+                d.getValue().dni != null ? d.getValue().dni : ""));
+        cColEmail.setCellValueFactory(d -> new SimpleStringProperty(
+                d.getValue().email != null ? d.getValue().email : ""));
+        cColEspecialidad.setCellValueFactory(d -> new SimpleStringProperty(
+                d.getValue().specialty != null ? d.getValue().specialty : "-"));
+        cColExperiencia.setCellValueFactory(d -> new SimpleStringProperty(
+                d.getValue().experienceYears != null
+                        ? d.getValue().experienceYears + " a\u00f1os"
+                        : "0 a\u00f1os"));
+        cColEstado.setCellValueFactory(d -> new SimpleStringProperty(
+                Boolean.TRUE.equals(d.getValue().isActive) ? "Activo" : "Inactivo"));
+        cColAcciones.setCellValueFactory(d -> new SimpleStringProperty("Editar | Desactivar"));
     }
 
     private void configurarTablaUsuarios() {
-        uColNombre.setCellValueFactory(  d -> new SimpleStringProperty(d.getValue()[0]));
-        uColDni.setCellValueFactory(     d -> new SimpleStringProperty(d.getValue()[1]));
-        uColEmail.setCellValueFactory(   d -> new SimpleStringProperty(d.getValue()[2]));
-        uColTelefono.setCellValueFactory(d -> new SimpleStringProperty(d.getValue()[3]));
-        uColEstado.setCellValueFactory(  d -> new SimpleStringProperty(d.getValue()[4]));
+        uColNombre.setCellValueFactory(d -> new SimpleStringProperty(
+                d.getValue().firstName + " " + d.getValue().lastName));
+        uColDni.setCellValueFactory(d -> new SimpleStringProperty(
+                d.getValue().dni != null ? d.getValue().dni : ""));
+        uColEmail.setCellValueFactory(d -> new SimpleStringProperty(
+                d.getValue().email != null ? d.getValue().email : ""));
+        uColTelefono.setCellValueFactory(d -> new SimpleStringProperty(
+                d.getValue().phone != null ? d.getValue().phone : ""));
+        uColEstado.setCellValueFactory(d -> new SimpleStringProperty(
+                Boolean.TRUE.equals(d.getValue().isActive) ? "Activo" : "Inactivo"));
         uColAcciones.setCellValueFactory(d -> new SimpleStringProperty("Activar | Desactivar"));
     }
 
     private void configurarTablaReservas() {
-        rColFecha.setCellValueFactory(   d -> new SimpleStringProperty(d.getValue()[0]));
-        rColCliente.setCellValueFactory( d -> new SimpleStringProperty(d.getValue()[1]));
-        rColCortador.setCellValueFactory(d -> new SimpleStringProperty(d.getValue()[2]));
-        rColServicio.setCellValueFactory(d -> new SimpleStringProperty(d.getValue()[3]));
-        rColHora.setCellValueFactory(    d -> new SimpleStringProperty(d.getValue()[4]));
-        rColEstado.setCellValueFactory(  d -> new SimpleStringProperty(d.getValue()[5]));
+        rColFecha.setCellValueFactory(d -> new SimpleStringProperty(
+                d.getValue().reservationDate != null
+                        ? d.getValue().reservationDate.format(FMT_FECHA) : ""));
+        rColCliente.setCellValueFactory(d -> new SimpleStringProperty(
+                d.getValue().getClientFullName()));
+        rColCortador.setCellValueFactory(d -> new SimpleStringProperty(
+                d.getValue().getCarverFullName()));
+        rColServicio.setCellValueFactory(d -> new SimpleStringProperty(
+                d.getValue().serviceName != null ? d.getValue().serviceName : ""));
+        rColHora.setCellValueFactory(d -> new SimpleStringProperty(
+                d.getValue().getHoraStr()));
+        rColEstado.setCellValueFactory(d -> new SimpleStringProperty(
+                traducirEstado(d.getValue().status)));
         rColAcciones.setCellValueFactory(d -> new SimpleStringProperty("Ver | Cancelar"));
     }
 
     private void configurarTablaNotificaciones() {
-        nColFecha.setCellValueFactory(        d -> new SimpleStringProperty(d.getValue()[0]));
-        nColDestinatario.setCellValueFactory( d -> new SimpleStringProperty(d.getValue()[1]));
-        nColTipo.setCellValueFactory(         d -> new SimpleStringProperty(d.getValue()[2]));
-        nColAsunto.setCellValueFactory(       d -> new SimpleStringProperty(d.getValue()[3]));
+        nColFecha.setCellValueFactory(d -> new SimpleStringProperty(
+                d.getValue().sentAt != null ? d.getValue().sentAt.format(FMT_DATETIME) : ""));
+        nColDestinatario.setCellValueFactory(d -> new SimpleStringProperty(
+                d.getValue().recipientEmail != null ? d.getValue().recipientEmail : ""));
+        nColTipo.setCellValueFactory(d -> new SimpleStringProperty(
+                traducirTipoNotif(d.getValue().notificationType)));
+        nColAsunto.setCellValueFactory(d -> new SimpleStringProperty(
+                d.getValue().subject != null ? d.getValue().subject : ""));
     }
 
-    // ── Datos de ejemplo ─────────────────────────────────────────
-    // TODO Issue #36: sustituir por llamadas reales a la API
+    // ── Carga de datos desde la API ──────────────────────────────────────
 
-    private void cargarDatosEjemplo() {
-        // Cortadores
-        cortadoresTable.getItems().addAll(
-                new String[]{"Carlos Martinez", "33333333P", "carlos@hambooking.com", "Jamon Iberico", "5 anos", "Activo"},
-                new String[]{"Ana Lopez",       "55555555K", "ana@hambooking.com",    "Paleta",        "3 anos", "Activo"},
-                new String[]{"Pedro Ruiz",      "66666666M", "pedro@hambooking.com",  "Todos",         "8 anos", "Activo"},
-                new String[]{"Maria Sanchez",   "77777777T", "maria@hambooking.com",  "Embutidos",     "2 anos", "Inactivo"}
-        );
+    private void cargarDatos() {
+        Thread thread = new Thread(() -> {
+            try {
+                List<AppDTO.CarverResponse> cortadores = ApiClient.getInstance()
+                        .getList("/carvers", AppDTO.CarverResponse.class);
 
-        // Usuarios
-        usuariosTable.getItems().addAll(
-                new String[]{"Juan Garcia",  "12345678A", "juan@example.com",  "612345678", "Activo"},
-                new String[]{"Laura Perez",  "87654321B", "laura@example.com", "698765432", "Activo"},
-                new String[]{"Miguel Torres","11111111C", "miguel@example.com","611111111", "Activo"}
-        );
+                List<AppDTO.UserResponse> usuarios = ApiClient.getInstance()
+                        .getList("/users", AppDTO.UserResponse.class);
 
-        // Reservas
-        reservasTable.getItems().addAll(
-                new String[]{"22 Ene 2026", "Juan Garcia",  "Carlos Martinez", "Corte de Jamon",   "10:00-12:00", "Confirmada"},
-                new String[]{"22 Ene 2026", "Laura Perez",  "Ana Lopez",       "Corte de Paleta",  "11:00-12:00", "Confirmada"},
-                new String[]{"24 Ene 2026", "Juan Garcia",  "Ana Lopez",       "Corte de Paleta",  "14:30-15:30", "Pendiente"},
-                new String[]{"10 Ene 2026", "Miguel Torres","Pedro Ruiz",      "Corte de Embutido","16:30-17:00", "Realizada"}
-        );
+                List<AppDTO.ReservationResponse> reservas = ApiClient.getInstance()
+                        .getList("/reservations", AppDTO.ReservationResponse.class);
 
-        // Notificaciones
-        notificacionesTable.getItems().addAll(
-                new String[]{"22 Ene 2026 10:05", "juan@example.com",        "CREATED",   "Reserva Confirmada - Corte de Jamon"},
-                new String[]{"22 Ene 2026 10:05", "carlos@hambooking.com",   "CREATED",   "Nueva reserva asignada el 22 Ene"},
-                new String[]{"22 Ene 2026 10:05", "admin@hambooking.com",    "CREATED",   "Nueva reserva: Juan Garcia - 22 Ene"},
-                new String[]{"10 Ene 2026 16:35", "miguel@example.com",      "CANCELLED", "Reserva cancelada - Corte de Embutido"}
-        );
+                List<AppDTO.NotificationResponse> notificaciones = ApiClient.getInstance()
+                        .getList("/notifications", AppDTO.NotificationResponse.class);
+
+                Platform.runLater(() -> {
+                    cortadoresTable.getItems().setAll(cortadores);
+                    // Solo mostrar clientes (no al propio admin)
+                    usuariosTable.getItems().setAll(
+                            usuarios.stream()
+                                    .filter(u -> !"ADMIN".equals(u.role))
+                                    .toList()
+                    );
+                    reservasTable.getItems().setAll(reservas);
+                    notificacionesTable.getItems().setAll(notificaciones);
+
+                    // KPIs calculados de los datos reales
+                    long activos = cortadores.stream()
+                            .filter(c -> Boolean.TRUE.equals(c.isActive)).count();
+                    long clientes = usuarios.stream()
+                            .filter(u -> "CLIENT".equals(u.role)).count();
+                    long hoy = reservas.stream()
+                            .filter(r -> r.reservationDate != null
+                                    && r.reservationDate.equals(java.time.LocalDate.now()))
+                            .count();
+                    long pendientes = reservas.stream()
+                            .filter(r -> "PENDING".equals(r.status))
+                            .count();
+
+                    kpiCortadores.setText(String.valueOf(activos));
+                    kpiClientes.setText(String.valueOf(clientes));
+                    kpiReservasHoy.setText(String.valueOf(hoy));
+                    kpiPendientes.setText(String.valueOf(pendientes));
+                });
+
+            } catch (ApiClient.ApiException e) {
+                Platform.runLater(() ->
+                        pageTitle.setText("Error al cargar: " + e.getMessage())
+                );
+            }
+        });
+        thread.setDaemon(true);
+        thread.start();
     }
 
-    private void actualizarKpis() {
-        kpiCortadores.setText("3");
-        kpiReservasHoy.setText("2");
-        kpiClientes.setText("3");
-        kpiPendientes.setText("1");
-    }
+    // ── Navegacion entre tabs ────────────────────────────────────────────
 
-    // ── Navegacion entre tabs ────────────────────────────────────
-
-    @FXML
-    private void showTabCortadores() {
+    @FXML private void showTabCortadores() {
         mainTabPane.getSelectionModel().select(tabCortadores);
-        pageTitle.setText("Gestion de Cortadores");
-        pageBreadcrumb.setText("Inicio · Cortadores");
+        pageTitle.setText("Gesti\u00f3n de Cortadores");
+        pageBreadcrumb.setText("Inicio \u00b7 Cortadores");
     }
 
-    @FXML
-    private void showTabUsuarios() {
+    @FXML private void showTabUsuarios() {
         mainTabPane.getSelectionModel().select(tabUsuarios);
-        pageTitle.setText("Gestion de Usuarios");
-        pageBreadcrumb.setText("Inicio · Usuarios");
+        pageTitle.setText("Gesti\u00f3n de Usuarios");
+        pageBreadcrumb.setText("Inicio \u00b7 Usuarios");
     }
 
-    @FXML
-    private void showTabReservas() {
+    @FXML private void showTabReservas() {
         mainTabPane.getSelectionModel().select(tabReservas);
         pageTitle.setText("Todas las Reservas");
-        pageBreadcrumb.setText("Inicio · Reservas");
+        pageBreadcrumb.setText("Inicio \u00b7 Reservas");
     }
 
-    @FXML
-    private void showTabNotificaciones() {
+    @FXML private void showTabNotificaciones() {
         mainTabPane.getSelectionModel().select(tabNotificaciones);
         pageTitle.setText("Notificaciones");
-        pageBreadcrumb.setText("Inicio · Notificaciones");
+        pageBreadcrumb.setText("Inicio \u00b7 Notificaciones");
     }
 
-    @FXML
-    private void showTabEstadisticas() {
+    @FXML private void showTabEstadisticas() {
         mainTabPane.getSelectionModel().select(tabEstadisticas);
-        pageTitle.setText("Estadisticas");
-        pageBreadcrumb.setText("Inicio · Estadisticas");
+        pageTitle.setText("Estad\u00edsticas");
+        pageBreadcrumb.setText("Inicio \u00b7 Estad\u00edsticas");
     }
 
-    // ── Acciones ─────────────────────────────────────────────────
+    // ── Acciones ─────────────────────────────────────────────────────────
 
-    /**
-     * Boton "+ Nuevo" de la cabecera.
-     * Abre el formulario correspondiente al tab activo.
-     * TODO Issue #36: abrir dialogo de creacion.
-     */
-    @FXML
-    private void handleNuevo() {
+    @FXML private void handleNuevo() {
         Tab tabActivo = mainTabPane.getSelectionModel().getSelectedItem();
         if (tabActivo == tabCortadores) {
             System.out.println("TODO: abrir dialogo nuevo cortador");
@@ -254,12 +264,34 @@ public class AdminDashboardController implements Initializable {
         }
     }
 
-    @FXML
-    private void handleLogout() {
-        navigateTo("/com/hambooking/frontend/fxml/login.fxml", "HamBooking - Iniciar sesion");
+    @FXML private void handleLogout() {
+        SessionManager.getInstance().clear();
+        navigateTo("/com/hambooking/frontend/fxml/login.fxml", "HamBooking - Iniciar sesi\u00f3n");
     }
 
-    // ── Utilidades ───────────────────────────────────────────────
+    // ── Utilidades ───────────────────────────────────────────────────────
+
+    private String traducirEstado(String status) {
+        if (status == null) return "";
+        return switch (status) {
+            case "PENDING"   -> "Pendiente";
+            case "CONFIRMED" -> "Confirmada";
+            case "COMPLETED" -> "Realizada";
+            case "CANCELLED" -> "Cancelada";
+            default          -> status;
+        };
+    }
+
+    private String traducirTipoNotif(String tipo) {
+        if (tipo == null) return "";
+        return switch (tipo) {
+            case "CREATED"   -> "Creaci\u00f3n";
+            case "MODIFIED"  -> "Modificaci\u00f3n";
+            case "CANCELLED" -> "Cancelaci\u00f3n";
+            case "REMINDER"  -> "Recordatorio";
+            default          -> tipo;
+        };
+    }
 
     private void navigateTo(String fxmlPath, String title) {
         try {

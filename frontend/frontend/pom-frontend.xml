@@ -1,62 +1,55 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project xmlns="http://maven.apache.org/POM/4.0.0"
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
+         https://maven.apache.org/xsd/maven-4.0.0.xsd">
   <modelVersion>4.0.0</modelVersion>
 
-  <groupId>com.hambooking</groupId>
-  <artifactId>frontend</artifactId>
-  <version>1.0-SNAPSHOT</version>
-  <name>frontend</name>
+  <parent>
+    <groupId>com.hambooking</groupId>
+    <artifactId>hambooking-root</artifactId>
+    <version>1.0-SNAPSHOT</version>
+    <relativePath>../../pom.xml</relativePath>
+  </parent>
 
-  <properties>
-    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-    <java.version>21</java.version>
-    <maven.compiler.source>21</maven.compiler.source>
-    <maven.compiler.target>21</maven.compiler.target>
-    <javafx.version>21.0.6</javafx.version>
-    <junit.version>5.12.1</junit.version>
-  </properties>
+  <artifactId>frontend</artifactId>
+  <name>frontend</name>
+  <description>HamBooking - Aplicacion de escritorio JavaFX</description>
 
   <dependencies>
 
-    <!-- ── JavaFX ── -->
     <dependency>
       <groupId>org.openjfx</groupId>
       <artifactId>javafx-controls</artifactId>
-      <version>${javafx.version}</version>
     </dependency>
     <dependency>
       <groupId>org.openjfx</groupId>
       <artifactId>javafx-fxml</artifactId>
-      <version>${javafx.version}</version>
     </dependency>
-
-    <!-- ── ControlsFX (componentes UI extra) ── -->
     <dependency>
       <groupId>org.controlsfx</groupId>
       <artifactId>controlsfx</artifactId>
-      <version>11.2.1</version>
     </dependency>
-
-    <!-- ── Jackson (deserialización JSON desde la API REST) ── -->
     <dependency>
       <groupId>com.fasterxml.jackson.core</groupId>
       <artifactId>jackson-databind</artifactId>
+    </dependency>
+
+    <!-- Soporte para LocalDate/LocalTime/LocalDateTime en Jackson -->
+    <dependency>
+      <groupId>com.fasterxml.jackson.datatype</groupId>
+      <artifactId>jackson-datatype-jsr310</artifactId>
       <version>2.15.2</version>
     </dependency>
 
-    <!-- ── Testing ── -->
     <dependency>
       <groupId>org.junit.jupiter</groupId>
       <artifactId>junit-jupiter-api</artifactId>
-      <version>${junit.version}</version>
       <scope>test</scope>
     </dependency>
     <dependency>
       <groupId>org.junit.jupiter</groupId>
       <artifactId>junit-jupiter-engine</artifactId>
-      <version>${junit.version}</version>
       <scope>test</scope>
     </dependency>
 
@@ -64,26 +57,6 @@
 
   <build>
     <plugins>
-
-      <!-- ── Compilador: Java 21 explícito ── -->
-      <plugin>
-        <groupId>org.apache.maven.plugins</groupId>
-        <artifactId>maven-compiler-plugin</artifactId>
-        <version>3.13.0</version>
-        <configuration>
-          <source>21</source>
-          <target>21</target>
-          <release>21</release>
-        </configuration>
-      </plugin>
-
-      <!-- ── JavaFX Maven Plugin ── -->
-      <!--
-        Uso:  mvn clean javafx:run
-        Este plugin añade automáticamente los módulos JavaFX al
-        module-path y pasa los - -add-modules necesarios, lo que
-        elimina el warning "JavaFX runtime is not configured".
-      -->
       <plugin>
         <groupId>org.openjfx</groupId>
         <artifactId>javafx-maven-plugin</artifactId>
@@ -92,18 +65,9 @@
           <execution>
             <id>default-cli</id>
             <configuration>
-              <!-- Formato: módulo/clase-principal -->
               <mainClass>
                 com.hambooking.frontend/com.hambooking.frontend.HamBookingApp
               </mainClass>
-              <!--
-                options: JVM args que el plugin inyecta al arrancar.
-                Con esto IntelliJ y Maven dejan de mostrar el warning.
-              -->
-              <options>
-                <option>--add-opens</option>
-                <option>javafx.graphics/com.sun.javafx.sg.prism=ALL-UNNAMED</option>
-              </options>
               <launcher>app</launcher>
               <jlinkZipName>app</jlinkZipName>
               <jlinkImageName>app</jlinkImageName>
@@ -114,14 +78,11 @@
           </execution>
         </executions>
       </plugin>
-
-      <!-- ── Surefire: ejecutar tests JUnit 5 con mvn test ── -->
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-surefire-plugin</artifactId>
         <version>3.2.5</version>
       </plugin>
-
     </plugins>
   </build>
 

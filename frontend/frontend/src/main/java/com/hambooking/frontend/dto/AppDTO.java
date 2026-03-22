@@ -2,19 +2,20 @@ package com.hambooking.frontend.dto;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
-import java.time.LocalTime;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 
-/**
- * DTOs espejo de los DTOs del backend.
- * Jackson los deserializa automaticamente desde el JSON de la API.
- */
 public class AppDTO {
 
-    // ── Carver ────────────────────────────────────────────────────
+    // ── Carver ───────────────────────────────────────────────────────────
     public static class CarverResponse {
         public Long    id;
         public Long    userId;
+        public String  firstName;
+        public String  lastName;
+        public String  dni;
+        public String  email;
+        public String  phone;
         public String  specialty;
         public Integer experienceYears;
         public Integer maxHamsPerDay;
@@ -23,13 +24,32 @@ public class AppDTO {
         public CarverResponse() {}
 
         public String getDisplayName() {
-            return specialty != null
-                    ? specialty + " (" + experienceYears + " anos exp.)"
-                    : "Sin especialidad";
+            if (firstName != null && lastName != null) {
+                return firstName + " " + lastName;
+            }
+            return specialty != null ? specialty : "Cortador #" + id;
         }
     }
 
-    // ── Service ───────────────────────────────────────────────────
+    // ── User ─────────────────────────────────────────────────────────────
+    public static class UserResponse {
+        public Long    id;
+        public String  dni;
+        public String  firstName;
+        public String  lastName;
+        public String  email;
+        public String  phone;
+        public String  role;
+        public Boolean isActive;
+
+        public UserResponse() {}
+
+        public String getFullName() {
+            return firstName + " " + lastName;
+        }
+    }
+
+    // ── Service ──────────────────────────────────────────────────────────
     public static class ServiceResponse {
         public Long       id;
         public String     name;
@@ -54,7 +74,7 @@ public class AppDTO {
         }
     }
 
-    // ── Reservation: crear ────────────────────────────────────────
+    // ── Reservation: crear ───────────────────────────────────────────────
     public static class CreateReservationRequest {
         public Long      clientId;
         public Long      carverId;
@@ -77,7 +97,7 @@ public class AppDTO {
         }
     }
 
-    // ── Reservation: respuesta ────────────────────────────────────
+    // ── Reservation: respuesta ───────────────────────────────────────────
     public static class ReservationResponse {
         public Long          id;
         public Long          clientId;
@@ -115,7 +135,7 @@ public class AppDTO {
         }
     }
 
-    // ── Reservation: actualizar ───────────────────────────────────
+    // ── Reservation: actualizar ──────────────────────────────────────────
     public static class UpdateReservationRequest {
         public LocalDate reservationDate;
         public LocalTime startTime;
@@ -129,5 +149,20 @@ public class AppDTO {
             this.startTime       = startTime;
             this.notes           = notes;
         }
+    }
+
+    // ── Notification ─────────────────────────────────────────────────────
+    public static class NotificationResponse {
+        public Long          id;
+        public Long          reservationId;
+        public String        recipientType;
+        public String        recipientEmail;
+        public String        notificationType;
+        public String        subject;
+        public String        message;
+        public Boolean       isSent;
+        public LocalDateTime sentAt;
+
+        public NotificationResponse() {}
     }
 }
