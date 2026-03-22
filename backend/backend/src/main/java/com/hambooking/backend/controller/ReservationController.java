@@ -21,44 +21,45 @@ public class ReservationController {
         this.reservationService = reservationService;
     }
 
-    // ─────────────────────────────────────────
+    // GET /api/reservations  (admin: todas)
+    @GetMapping
+    public ResponseEntity<List<ReservationResponseDTO>> listAllReservations() {
+        return ResponseEntity.ok(reservationService.listAllReservations());
+    }
+
+    // GET /api/reservations/client/{clientId}
+    @GetMapping("/client/{clientId}")
+    public ResponseEntity<List<ReservationResponseDTO>> listReservationsByClient(
+            @PathVariable Long clientId) {
+        return ResponseEntity.ok(reservationService.listReservationsByClient(clientId));
+    }
+
     // POST /api/reservations
-    // ─────────────────────────────────────────
     @PostMapping
     public ResponseEntity<ReservationResponseDTO> createReservation(
             @Valid @RequestBody CreateReservationDTO request) {
-        ReservationResponseDTO response = reservationService.createReservation(request);
-        return ResponseEntity.status(HttpStatus.CREATED).body(response); // 201
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(reservationService.createReservation(request));
     }
 
-    // ─────────────────────────────────────────
     // PUT /api/reservations/{id}
-    // ─────────────────────────────────────────
     @PutMapping("/{id}")
     public ResponseEntity<ReservationResponseDTO> updateReservation(
             @PathVariable Long id,
             @Valid @RequestBody UpdateReservationDTO request) {
-        ReservationResponseDTO response = reservationService.updateReservation(id, request);
-        return ResponseEntity.ok(response); // 200
+        return ResponseEntity.ok(reservationService.updateReservation(id, request));
     }
 
-    // ─────────────────────────────────────────
+    // PATCH /api/reservations/{id}/confirm  ← NUEVO
+    @PatchMapping("/{id}/confirm")
+    public ResponseEntity<ReservationResponseDTO> confirmReservation(@PathVariable Long id) {
+        return ResponseEntity.ok(reservationService.confirmReservation(id));
+    }
+
     // PATCH /api/reservations/{id}/cancel
-    // ─────────────────────────────────────────
     @PatchMapping("/{id}/cancel")
     public ResponseEntity<Void> cancelReservation(@PathVariable Long id) {
         reservationService.cancelReservation(id);
-        return ResponseEntity.noContent().build(); // 204
-    }
-
-    // ─────────────────────────────────────────
-    // GET /api/reservations/client/{clientId}
-    // ─────────────────────────────────────────
-    @GetMapping("/client/{clientId}")
-    public ResponseEntity<List<ReservationResponseDTO>> listReservationsByClient(
-            @PathVariable Long clientId) {
-        List<ReservationResponseDTO> reservations = reservationService
-                .listReservationsByClient(clientId);
-        return ResponseEntity.ok(reservations); // 200
+        return ResponseEntity.noContent().build();
     }
 }

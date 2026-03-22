@@ -1,7 +1,6 @@
 package com.hambooking.backend.service;
 
 import com.hambooking.backend.dto.carver.CarverDTO;
-import com.hambooking.backend.exception.InvalidCredentialsException;
 import com.hambooking.backend.exception.BusinessRuleException;
 import com.hambooking.backend.exception.ResourceNotFoundException;
 import com.hambooking.backend.model.entity.Carver;
@@ -31,26 +30,21 @@ public class CarverService {
     @Transactional
     public CarverDTO createCarver(CarverDTO request) {
 
-        // 1. Verificar que el usuario existe
         User user = userRepository.findById(request.getUserId())
                 .orElseThrow(() -> new ResourceNotFoundException("Usuario no encontrado"));
 
-        if (carverRepository.existsByUser(user)) {
+        if (carverRepository.existsByUser(user))
             throw new BusinessRuleException("Este usuario ya tiene perfil de cortador");
-        }
 
-        // 3. Construir el perfil de cortador
         Carver carver = new Carver();
         carver.setUser(user);
         carver.setSpecialty(request.getSpecialty());
-        carver.setExperienceYears(request.getExperienceYears() != null ? request.getExperienceYears() : 0);
+        carver.setExperienceYears(
+                request.getExperienceYears() != null ? request.getExperienceYears() : 0);
         carver.setMaxHamsPerDay(request.getMaxHamsPerDay());
         carver.setIsActive(true);
 
-        // 4. Guardar en BD
-        Carver saved = carverRepository.save(carver);
-
-        return toDTO(saved);
+        return toDTO(carverRepository.save(carver));
     }
 
     // ─────────────────────────────────────────
@@ -59,55 +53,66 @@ public class CarverService {
     @Transactional
     public CarverDTO updateCarver(Long id, CarverDTO request) {
 
-        // 1. Verificar que el cortador existe
         Carver carver = carverRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Cortador no encontrado"));
 
-        // 2. Actualizar solo los campos que vienen en la petición
-        if (request.getSpecialty() != null) {
+        if (request.getSpecialty() != null)
             carver.setSpecialty(request.getSpecialty());
-        }
-        if (request.getExperienceYears() != null) {
+        if (request.getExperienceYears() != null)
             carver.setExperienceYears(request.getExperienceYears());
-        }
-        if (request.getMaxHamsPerDay() != null) {
+        if (request.getMaxHamsPerDay() != null)
             carver.setMaxHamsPerDay(request.getMaxHamsPerDay());
-        }
 
-        // 3. Guardar cambios
-        Carver updated = carverRepository.save(carver);
-
-        return toDTO(updated);
+        return toDTO(carverRepository.save(carver));
     }
 
     // ─────────────────────────────────────────
-    // DESACTIVAR CORTADOR
+    // ACTIVAR / DESACTIVAR CORTADOR  ← NUEVO
     // ─────────────────────────────────────────
     @Transactional
-    public void deactivateCarver(Long id) {
+    public void setCarverActive(Long id, boolean active) {
 
-        // 1. Verificar que el cortador existe
         Carver carver = carverRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Cortador no encontrado"));
 
-
-        // 2. Regla de negocio crítica — no puede quedar cero cortadores activos
-        List<Carver> activosActuales = carverRepository.findByIsActiveTrue();
-        if (activosActuales.size() <= 1) {
-            throw new BusinessRuleException("No se puede desactivar el último cortador activo");
+        // Si se va a desactivar, verificar que no sea el último activo
+        if (!active) {
+            long activosActuales = carverRepository.findByIsActiveTrue().stream()
+                    .filter(c -> !c.getId().equals(id))
+                    .count();
+            if (activosActuales < 1)
+                throw new BusinessRuleException(
+                        "No se puede desactivar el último cortador activo");
         }
 
-        // 3. Soft delete — nunca borramos, solo desactivamos
-        carver.setIsActive(false);
+        carver.setIsActive(active);
         carverRepository.save(carver);
+    }
+
+    // ─────────────────────────────────────────
+    // DESACTIVAR CORTADOR (mantener por compatibilidad)
+    // ─────────────────────────────────────────
+    @Transactional
+    public void deactivateCarver(Long id) {
+        setCarverActive(id, false);
+    }
+
+    // ─────────────────────────────────────────
+    // LISTAR TODOS LOS CORTADORES
+    // ─────────────────────────────────────────
+    @Transactional(readOnly = true)
+    public List<CarverDTO> listAllCarvers() {
+        return carverRepository.findAll().stream()
+                .map(this::toDTO)
+                .collect(Collectors.toList());
     }
 
     // ─────────────────────────────────────────
     // LISTAR CORTADORES ACTIVOS
     // ─────────────────────────────────────────
+    @Transactional(readOnly = true)
     public List<CarverDTO> listActiveCarvers() {
-        return carverRepository.findByIsActiveTrue()
-                .stream()
+        return carverRepository.findByIsActiveTrue().stream()
                 .map(this::toDTO)
                 .collect(Collectors.toList());
     }

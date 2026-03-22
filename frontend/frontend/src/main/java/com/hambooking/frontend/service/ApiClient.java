@@ -125,6 +125,36 @@ public class ApiClient {
         }
     }
 
+    // ── PUT ──────────────────────────────────────────────────────
+
+    public void put(String endpoint, String jsonBody) throws ApiException {
+        try {
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(BASE_URL + endpoint))
+                    .header("Content-Type", "application/json")
+                    .header("Accept", "application/json")
+                    .PUT(HttpRequest.BodyPublishers.ofString(jsonBody))
+                    .timeout(Duration.ofSeconds(10))
+                    .build();
+
+            HttpResponse<String> response = httpClient.send(
+                    request, HttpResponse.BodyHandlers.ofString()
+            );
+
+            if (response.statusCode() < 200 || response.statusCode() >= 300) {
+                throw new ApiException(
+                        extraerMensajeError(response.body(), response.statusCode()),
+                        response.statusCode()
+                );
+            }
+
+        } catch (ApiException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new ApiException("No se pudo conectar con el servidor.", 0);
+        }
+    }
+
     // ── PATCH ────────────────────────────────────────────────────
 
     public void patch(String endpoint) throws ApiException {

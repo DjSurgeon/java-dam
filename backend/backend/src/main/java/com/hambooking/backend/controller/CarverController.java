@@ -19,40 +19,43 @@ public class CarverController {
         this.carverService = carverService;
     }
 
-    // ─────────────────────────────────────────
-    // POST /api/carvers
-    // ─────────────────────────────────────────
-    @PostMapping
-    public ResponseEntity<CarverDTO> createCarver(@Valid @RequestBody CarverDTO request) {
-        CarverDTO response = carverService.createCarver(request);
-        return ResponseEntity.status(HttpStatus.CREATED).body(response); // 201
+    // GET /api/carvers  (admin: todos)
+    @GetMapping
+    public ResponseEntity<List<CarverDTO>> listAllCarvers() {
+        return ResponseEntity.ok(carverService.listAllCarvers());
     }
 
-    // ─────────────────────────────────────────
+    // GET /api/carvers/active
+    @GetMapping("/active")
+    public ResponseEntity<List<CarverDTO>> listActiveCarvers() {
+        return ResponseEntity.ok(carverService.listActiveCarvers());
+    }
+
+    // POST /api/carvers
+    @PostMapping
+    public ResponseEntity<CarverDTO> createCarver(@Valid @RequestBody CarverDTO request) {
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(carverService.createCarver(request));
+    }
+
     // PUT /api/carvers/{id}
-    // ─────────────────────────────────────────
     @PutMapping("/{id}")
     public ResponseEntity<CarverDTO> updateCarver(@PathVariable Long id,
                                                   @Valid @RequestBody CarverDTO request) {
-        CarverDTO response = carverService.updateCarver(id, request);
-        return ResponseEntity.ok(response); // 200
+        return ResponseEntity.ok(carverService.updateCarver(id, request));
     }
 
-    // ─────────────────────────────────────────
+    // PATCH /api/carvers/{id}/activate  ← NUEVO
+    @PatchMapping("/{id}/activate")
+    public ResponseEntity<Void> activateCarver(@PathVariable Long id) {
+        carverService.setCarverActive(id, true);
+        return ResponseEntity.noContent().build();
+    }
+
     // PATCH /api/carvers/{id}/deactivate
-    // ─────────────────────────────────────────
     @PatchMapping("/{id}/deactivate")
     public ResponseEntity<Void> deactivateCarver(@PathVariable Long id) {
         carverService.deactivateCarver(id);
-        return ResponseEntity.noContent().build(); // 204
-    }
-
-    // ─────────────────────────────────────────
-    // GET /api/carvers/active
-    // ─────────────────────────────────────────
-    @GetMapping("/active")
-    public ResponseEntity<List<CarverDTO>> listActiveCarvers() {
-        List<CarverDTO> carvers = carverService.listActiveCarvers();
-        return ResponseEntity.ok(carvers); // 200
+        return ResponseEntity.noContent().build();
     }
 }
