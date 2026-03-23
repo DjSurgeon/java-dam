@@ -8,11 +8,12 @@ import javafx.beans.property.SimpleStringProperty;
 import javafx.fxml.FXML;
 import javafx.fxml.FXMLLoader;
 import javafx.fxml.Initializable;
+import javafx.geometry.Insets;
 import javafx.scene.Parent;
-import javafx.scene.control.Label;
-import javafx.scene.control.TableColumn;
-import javafx.scene.control.TableView;
+import javafx.scene.control.*;
+import javafx.scene.layout.HBox;
 import javafx.stage.Stage;
+import javafx.util.Callback;
 
 import java.io.IOException;
 import java.net.URL;
@@ -59,35 +60,121 @@ public class ClientDashboard implements Initializable {
 
     @Override
     public void initialize(URL location, ResourceBundle resources) {
-        // Sidebar
         SessionManager session = SessionManager.getInstance();
         sidebarUserName.setText(session.getFullName());
         sidebarUserRole.setText("Cliente");
 
-        // Fecha de hoy
         String fechaHoy = LocalDate.now().format(
-                DateTimeFormatter.ofPattern("EEEE, d 'de' MMMM 'de' yyyy", new Locale("es", "ES"))
-        );
+                DateTimeFormatter.ofPattern("EEEE, d 'de' MMMM 'de' yyyy", new Locale("es", "ES")));
         fechaHoyLabel.setText("Hoy es " + fechaHoy);
 
-        // Configurar columnas proximas
-        colFecha.setCellValueFactory(   d -> new SimpleStringProperty(formatFecha(d.getValue().reservationDate)));
-        colServicio.setCellValueFactory(d -> new SimpleStringProperty(d.getValue().serviceName));
-        colCortador.setCellValueFactory(d -> new SimpleStringProperty(d.getValue().getCarverFullName()));
-        colHora.setCellValueFactory(    d -> new SimpleStringProperty(d.getValue().getHoraStr()));
-        colEstado.setCellValueFactory(  d -> new SimpleStringProperty(d.getValue().status));
-        colAcciones.setCellValueFactory(d -> new SimpleStringProperty("Modificar / Cancelar"));
-
-        // Configurar columnas historial
-        hColFecha.setCellValueFactory(   d -> new SimpleStringProperty(formatFecha(d.getValue().reservationDate)));
-        hColServicio.setCellValueFactory(d -> new SimpleStringProperty(d.getValue().serviceName));
-        hColCortador.setCellValueFactory(d -> new SimpleStringProperty(d.getValue().getCarverFullName()));
-        hColHora.setCellValueFactory(    d -> new SimpleStringProperty(d.getValue().getHoraStr()));
-        hColEstado.setCellValueFactory(  d -> new SimpleStringProperty(d.getValue().status));
-
-        // Cargar reservas desde la API
+        configurarTablaProximas();
+        configurarTablaHistorial();
         cargarReservas();
     }
+
+    // ── Configuracion de tablas ──────────────────────────────────
+
+    private void configurarTablaProximas() {
+        colFecha.setCellValueFactory(d -> new SimpleStringProperty(
+                formatFecha(d.getValue().reservationDate)));
+        colServicio.setCellValueFactory(d -> new SimpleStringProperty(
+                d.getValue().serviceName != null ? d.getValue().serviceName : ""));
+        colCortador.setCellValueFactory(d -> new SimpleStringProperty(
+                d.getValue().getCarverFullName()));
+        colHora.setCellValueFactory(d -> new SimpleStringProperty(
+                d.getValue().getHoraStr()));
+        colEstado.setCellValueFactory(d -> new SimpleStringProperty(
+                traducirEstado(d.getValue().status)));
+        colAcciones.setCellFactory(accionesFactory());
+    }
+
+    private void configurarTablaHistorial() {
+        hColFecha.setCellValueFactory(d -> new SimpleStringProperty(
+                formatFecha(d.getValue().reservationDate)));
+        hColServicio.setCellValueFactory(d -> new SimpleStringProperty(
+                d.getValue().serviceName != null ? d.getValue().serviceName : ""));
+        hColCortador.setCellValueFactory(d -> new SimpleStringProperty(
+                d.getValue().getCarverFullName()));
+        hColHora.setCellValueFactory(d -> new SimpleStringProperty(
+                d.getValue().getHoraStr()));
+        hColEstado.setCellValueFactory(d -> new SimpleStringProperty(
+                traducirEstado(d.getValue().status)));
+    }
+
+    // ── Factory de botones para proximas ─────────────────────────
+
+    private Callback<TableColumn<AppDTO.ReservationResponse, String>,
+            TableCell<AppDTO.ReservationResponse, String>> accionesFactory() {
+
+        return col -> new TableCell<>() {
+            private final Button btnCancelar = new Button("Cancelar");
+            private final HBox   box         = new HBox(6, btnCancelar);
+
+            {
+                box.setPadding(new Insets(2, 0, 2, 0));
+                btnCancelar.setStyle(
+                        "-fx-font-size:11px; -fx-padding:3 8 3 8;" +
+                                "-fx-background-color:#e74c3c; -fx-text-fill:white;");
+
+                btnCancelar.setOnAction(e -> {
+                    AppDTO.ReservationResponse r = getTableView().getItems().get(getIndex());
+                    cancelarReserva(r);
+                });
+            }
+
+            @Override
+            protected void updateItem(String item, boolean empty) {
+                super.updateItem(item, empty);
+                if (empty || getIndex() < 0 || getIndex() >= getTableView().getItems().size()) {
+                    setGraphic(null);
+                    return;
+                }
+                AppDTO.ReservationResponse r = getTableView().getItems().get(getIndex());
+                // Solo mostrar cancelar si es PENDING o CONFIRMED y fecha futura
+                boolean cancelable = ("PENDING".equals(r.status) || "CONFIRMED".equals(r.status))
+                        && r.reservationDate != null
+                        && !r.reservationDate.isBefore(LocalDate.now());
+                if (cancelable) {
+                    setGraphic(box);
+                } else {
+                    setGraphic(null);
+                }
+            }
+        };
+    }
+
+    // ── Logica de cancelacion ─────────────────────────────────────
+
+    private void cancelarReserva(AppDTO.ReservationResponse reserva) {
+        Alert confirm = new Alert(Alert.AlertType.CONFIRMATION);
+        confirm.setTitle("Cancelar reserva");
+        confirm.setHeaderText("\u00bfCancelar tu reserva de " + reserva.serviceName + "?");
+        confirm.setContentText("Fecha: " + formatFecha(reserva.reservationDate)
+                + "\nHora: " + reserva.getHoraStr()
+                + "\n\nEsta acci\u00f3n no se puede deshacer.");
+        confirm.showAndWait().ifPresent(btn -> {
+            if (btn == ButtonType.OK) {
+                Thread t = new Thread(() -> {
+                    try {
+                        ApiClient.getInstance().patch("/reservations/" + reserva.id + "/cancel");
+                        Platform.runLater(() -> {
+                            mostrarAlerta(Alert.AlertType.INFORMATION,
+                                    "\u00c9xito", "Reserva cancelada correctamente.");
+                            cargarReservas();
+                        });
+                    } catch (ApiClient.ApiException ex) {
+                        Platform.runLater(() ->
+                                mostrarAlerta(Alert.AlertType.ERROR, "Error", ex.getMessage()));
+                    }
+                });
+                t.setDaemon(true);
+                t.start();
+            }
+        });
+    }
+
+    // ── Carga de datos ───────────────────────────────────────────
 
     private void cargarReservas() {
         Long clientId = SessionManager.getInstance().getUserId();
@@ -114,7 +201,6 @@ public class ClientDashboard implements Initializable {
                                 || "COMPLETED".equals(r.status)))
                         .collect(Collectors.toList());
 
-                // KPIs
                 long semana = proximas.stream()
                         .filter(r -> !r.reservationDate.isBefore(hoy)
                                 && !r.reservationDate.isAfter(hoy.plusDays(6)))
@@ -138,8 +224,7 @@ public class ClientDashboard implements Initializable {
 
             } catch (ApiClient.ApiException e) {
                 Platform.runLater(() ->
-                        fechaHoyLabel.setText("Error al cargar reservas: " + e.getMessage())
-                );
+                        fechaHoyLabel.setText("Error al cargar: " + e.getMessage()));
             }
         });
         thread.setDaemon(true);
@@ -149,20 +234,51 @@ public class ClientDashboard implements Initializable {
     // ── Navegacion ───────────────────────────────────────────────
 
     @FXML private void goToCalendar() {
-        navigateTo("/com/hambooking/frontend/fxml/calendar.fxml", "HamBooking - Nueva Reserva");
+        navigateTo("/com/hambooking/frontend/fxml/calendar.fxml",
+                "HamBooking - Nueva Reserva");
     }
 
-    @FXML private void goToReservations()  { /* TODO */ }
-    @FXML private void goToProfile()       { /* TODO */ }
-    @FXML private void goToNotifications() { /* TODO */ }
+    @FXML private void goToReservations() {
+        // Historial ya visible en la misma pantalla — scroll a la tabla
+        historialTable.requestFocus();
+    }
 
-    @FXML
-    private void handleLogout() {
+    @FXML private void goToProfile() {
+        mostrarAlerta(Alert.AlertType.INFORMATION,
+                "Perfil", "Funcionalidad disponible en una pr\u00f3xima versi\u00f3n.");
+    }
+
+    @FXML private void goToNotifications() {
+        mostrarAlerta(Alert.AlertType.INFORMATION,
+                "Notificaciones", "Funcionalidad disponible en una pr\u00f3xima versi\u00f3n.");
+    }
+
+    @FXML private void handleLogout() {
         SessionManager.getInstance().clear();
-        navigateTo("/com/hambooking/frontend/fxml/login.fxml", "HamBooking - Iniciar sesion");
+        navigateTo("/com/hambooking/frontend/fxml/login.fxml",
+                "HamBooking - Iniciar sesion");
     }
 
     // ── Utilidades ───────────────────────────────────────────────
+
+    private String traducirEstado(String status) {
+        if (status == null) return "";
+        return switch (status) {
+            case "PENDING"   -> "Pendiente";
+            case "CONFIRMED" -> "Confirmada";
+            case "COMPLETED" -> "Realizada";
+            case "CANCELLED" -> "Cancelada";
+            default          -> status;
+        };
+    }
+
+    private void mostrarAlerta(Alert.AlertType tipo, String titulo, String mensaje) {
+        Alert alert = new Alert(tipo);
+        alert.setTitle(titulo);
+        alert.setHeaderText(null);
+        alert.setContentText(mensaje);
+        alert.showAndWait();
+    }
 
     private String formatFecha(LocalDate date) {
         return date != null ? date.format(FMT_FECHA) : "";

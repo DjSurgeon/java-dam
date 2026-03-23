@@ -19,8 +19,10 @@ import javafx.util.Callback;
 import java.io.IOException;
 import java.net.URL;
 import java.time.format.DateTimeFormatter;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
 import java.util.ResourceBundle;
 
@@ -556,9 +558,134 @@ public class AdminDashboardController implements Initializable {
     @FXML private void handleNuevo() {
         Tab tabActivo = mainTabPane.getSelectionModel().getSelectedItem();
         if (tabActivo == tabCortadores) {
-            System.out.println("TODO: dialogo nuevo cortador");
-        } else if (tabActivo == tabUsuarios) {
-            System.out.println("TODO: dialogo nuevo usuario");
+            mostrarDialogoNuevoCortador();
+        }
+    }
+
+    private void mostrarDialogoNuevoCortador() {
+        // 1. Obtener usuarios que aún no son cortadores
+        List<AppDTO.UserResponse> todosUsuarios = usuariosTable.getItems();
+        List<Long> idsYaCortadores = cortadoresTable.getItems().stream()
+                .map(c -> c.userId)
+                .toList();
+
+        List<AppDTO.UserResponse> usuariosSinCortador = todosUsuarios.stream()
+                .filter(u -> !idsYaCortadores.contains(u.id))
+                .filter(u -> Boolean.TRUE.equals(u.isActive))
+                .toList();
+
+        if (usuariosSinCortador.isEmpty()) {
+            mostrarAlerta(Alert.AlertType.INFORMATION,
+                    "Sin usuarios disponibles",
+                    "Todos los usuarios activos ya tienen perfil de cortador.\n"
+                            + "Registra un nuevo usuario primero.");
+            return;
+        }
+
+        // 2. Construir el diálogo
+        Dialog<ButtonType> dialog = new Dialog<>();
+        dialog.setTitle("Nuevo cortador");
+        dialog.setHeaderText("Asignar perfil de cortador a un usuario");
+
+        ComboBox<AppDTO.UserResponse> cbUsuario = new ComboBox<>();
+        cbUsuario.getItems().addAll(usuariosSinCortador);
+        cbUsuario.setCellFactory(lv -> new ListCell<>() {
+            @Override
+            protected void updateItem(AppDTO.UserResponse u, boolean empty) {
+                super.updateItem(u, empty);
+                setText(empty || u == null ? null
+                        : u.firstName + " " + u.lastName + " (" + u.email + ")");
+            }
+        });
+        cbUsuario.setButtonCell(new ListCell<>() {
+            @Override
+            protected void updateItem(AppDTO.UserResponse u, boolean empty) {
+                super.updateItem(u, empty);
+                setText(empty || u == null ? null
+                        : u.firstName + " " + u.lastName + " (" + u.email + ")");
+            }
+        });
+        cbUsuario.setPrefWidth(350);
+        cbUsuario.getSelectionModel().selectFirst();
+
+        ComboBox<String> cbEspecialidad = new ComboBox<>();
+        cbEspecialidad.getItems().addAll(
+                "Jam\u00f3n Ib\u00e9rico", "Jam\u00f3n Serrano", "Paleta", "Embutidos", "Todos");
+        cbEspecialidad.getSelectionModel().selectFirst();
+        cbEspecialidad.setPrefWidth(350);
+
+        TextField tfExperiencia = new TextField("0");
+        tfExperiencia.setPromptText("A\u00f1os de experiencia");
+
+        TextField tfMaxJamones = new TextField("3");
+        tfMaxJamones.setPromptText("M\u00e1x. jamones por d\u00eda (1-10)");
+
+        VBox content = new VBox(8,
+                new Label("Usuario:"),       cbUsuario,
+                new Label("Especialidad:"),  cbEspecialidad,
+                new Label("A\u00f1os de experiencia:"), tfExperiencia,
+                new Label("M\u00e1x. jamones/d\u00eda:"), tfMaxJamones);
+        content.setPadding(new Insets(16));
+
+        dialog.getDialogPane().setContent(content);
+        dialog.getDialogPane().getButtonTypes().addAll(ButtonType.OK, ButtonType.CANCEL);
+
+        Optional<ButtonType> result = dialog.showAndWait();
+        if (result.isPresent() && result.get() == ButtonType.OK) {
+            AppDTO.UserResponse usuarioSeleccionado = cbUsuario.getValue();
+            if (usuarioSeleccionado == null) {
+                mostrarAlerta(Alert.AlertType.WARNING, "Sin selecci\u00f3n",
+                        "Debes seleccionar un usuario.");
+                return;
+            }
+            try {
+                int exp = Integer.parseInt(tfExperiencia.getText().trim());
+                int max = Integer.parseInt(tfMaxJamones.getText().trim());
+
+                if (exp < 0) {
+                    mostrarAlerta(Alert.AlertType.WARNING, "Valor inv\u00e1lido",
+                            "Los a\u00f1os de experiencia no pueden ser negativos.");
+                    return;
+                }
+                if (max < 1 || max > 10) {
+                    mostrarAlerta(Alert.AlertType.WARNING, "Valor inv\u00e1lido",
+                            "El m\u00e1ximo de jamones debe estar entre 1 y 10.");
+                    return;
+                }
+
+                final int expFinal = exp;
+                final int maxFinal = max;
+                final AppDTO.UserResponse userFinal = usuarioSeleccionado;
+                final String especialidadFinal = cbEspecialidad.getValue();
+
+                Thread t = new Thread(() -> {
+                    try {
+                        java.util.Map<String, Object> body = new java.util.LinkedHashMap<>();
+                        body.put("userId", userFinal.id);
+                        body.put("specialty", especialidadFinal);
+                        body.put("experienceYears", expFinal);
+                        body.put("maxHamsPerDay", maxFinal);
+                        ApiClient.getInstance().post("/carvers", body,
+                                AppDTO.CarverResponse.class);
+                        Platform.runLater(() -> {
+                            mostrarAlerta(Alert.AlertType.INFORMATION,
+                                    "\u00c9xito",
+                                    "Cortador creado correctamente.");
+                            cargarDatos();
+                        });
+                    } catch (ApiClient.ApiException ex) {
+                        Platform.runLater(() ->
+                                mostrarAlerta(Alert.AlertType.ERROR,
+                                        "Error", ex.getMessage()));
+                    }
+                });
+                t.setDaemon(true);
+                t.start();
+
+            } catch (NumberFormatException ex) {
+                mostrarAlerta(Alert.AlertType.WARNING, "Datos inv\u00e1lidos",
+                        "Introduce n\u00fameros v\u00e1lidos en los campos num\u00e9ricos.");
+            }
         }
     }
 

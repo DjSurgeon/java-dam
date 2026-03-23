@@ -7,10 +7,17 @@ import jakarta.validation.constraints.Size;
 
 public class CarverDTO {
 
-    // El ID del usuario al que se le asigna el perfil de cortador
-    // Solo se usa en la creación, en actualizaciones se ignora
-    private Long userId;
+    // Campos de solo lectura (respuesta) — datos del usuario asociado
+    private Long   id;
+    private Long   userId;
+    private String firstName;
+    private String lastName;
+    private String dni;
+    private String email;
+    private String phone;
+    private Boolean isActive;
 
+    // Campos editables
     @Size(max = 100, message = "La especialidad no puede exceder 100 caracteres")
     private String specialty;
 
@@ -22,37 +29,56 @@ public class CarverDTO {
     @Max(value = 10, message = "El límite máximo de servicios por día es 10")
     private Integer maxHamsPerDay;
 
-    // Solo viene relleno en respuestas, nunca en peticiones de entrada
-    private Long id;
-    private Boolean isActive;
-
     public CarverDTO() {}
 
-    public CarverDTO(Long id, Long userId, String specialty,
-                     Integer experienceYears, Integer maxHamsPerDay, Boolean isActive) {
-        this.id = id;
-        this.userId = userId;
-        this.specialty = specialty;
+    // Constructor completo para respuestas (toDTO)
+    public CarverDTO(Long id, Long userId,
+                     String firstName, String lastName, String dni, String email, String phone,
+                     String specialty, Integer experienceYears, Integer maxHamsPerDay,
+                     Boolean isActive) {
+        this.id            = id;
+        this.userId        = userId;
+        this.firstName     = firstName;
+        this.lastName      = lastName;
+        this.dni           = dni;
+        this.email         = email;
+        this.phone         = phone;
+        this.specialty     = specialty;
         this.experienceYears = experienceYears;
         this.maxHamsPerDay = maxHamsPerDay;
-        this.isActive = isActive;
+        this.isActive      = isActive;
     }
 
-    public Long getId() { return id; }
-    public void setId(Long id) { this.id = id; }
+    public Long    getId()             { return id; }
+    public void    setId(Long id)      { this.id = id; }
 
-    public Long getUserId() { return userId; }
-    public void setUserId(Long userId) { this.userId = userId; }
+    public Long    getUserId()         { return userId; }
+    public void    setUserId(Long v)   { this.userId = v; }
 
-    public String getSpecialty() { return specialty; }
-    public void setSpecialty(String specialty) { this.specialty = specialty; }
+    public String  getFirstName()      { return firstName; }
+    public void    setFirstName(String v) { this.firstName = v; }
 
-    public Integer getExperienceYears() { return experienceYears; }
-    public void setExperienceYears(Integer experienceYears) { this.experienceYears = experienceYears; }
+    public String  getLastName()       { return lastName; }
+    public void    setLastName(String v)  { this.lastName = v; }
 
-    public Integer getMaxHamsPerDay() { return maxHamsPerDay; }
-    public void setMaxHamsPerDay(Integer maxHamsPerDay) { this.maxHamsPerDay = maxHamsPerDay; }
+    public String  getDni()            { return dni; }
+    public void    setDni(String v)    { this.dni = v; }
 
-    public Boolean getIsActive() { return isActive; }
-    public void setIsActive(Boolean isActive) { this.isActive = isActive; }
+    public String  getEmail()          { return email; }
+    public void    setEmail(String v)  { this.email = v; }
+
+    public String  getPhone()          { return phone; }
+    public void    setPhone(String v)  { this.phone = v; }
+
+    public String  getSpecialty()      { return specialty; }
+    public void    setSpecialty(String v) { this.specialty = v; }
+
+    public Integer getExperienceYears()       { return experienceYears; }
+    public void    setExperienceYears(Integer v) { this.experienceYears = v; }
+
+    public Integer getMaxHamsPerDay()         { return maxHamsPerDay; }
+    public void    setMaxHamsPerDay(Integer v)   { this.maxHamsPerDay = v; }
+
+    public Boolean getIsActive()       { return isActive; }
+    public void    setIsActive(Boolean v) { this.isActive = v; }
 }

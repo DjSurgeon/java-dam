@@ -124,6 +124,11 @@ public class CarverService {
         return new CarverDTO(
                 carver.getId(),
                 carver.getUser().getId(),
+                carver.getUser().getFirstName(),
+                carver.getUser().getLastName(),
+                carver.getUser().getDni(),
+                carver.getUser().getEmail(),
+                carver.getUser().getPhone(),
                 carver.getSpecialty(),
                 carver.getExperienceYears(),
                 carver.getMaxHamsPerDay(),
