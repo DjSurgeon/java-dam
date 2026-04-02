@@ -9,126 +9,58 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * Repository para la entidad {@link User}.
- *
- * Extiende {@link JpaRepository} y hereda automáticamente:
- *   - save()       → INSERT / UPDATE
- *   - findById()   → SELECT WHERE id = ?
- *   - findAll()    → SELECT *
- *   - deleteById() → DELETE WHERE id = ?
- *   - count()      → SELECT COUNT(*)
- *   - existsById() → SELECT COUNT(*) > 0
- *
- * Los métodos declarados aquí son "query methods": Spring Data JPA
- * parsea el nombre del método y genera la SQL automáticamente en
- * tiempo de arranque. Si hay un typo, la aplicación no arranca.
- *
- * Casos de uso principales:
- *   - Login:          findByEmailAndIsActiveTrue()
- *   - Registro:       existsByEmail() / existsByDni()
- *   - Panel admin:    findByRole()
- *   - Perfil:         findByDni()
+ * Repositorio para la gestión de persistencia de la entidad {@link User}.
+ * Proporciona métodos para la autenticación, registro y administración de usuarios.
  */
 @Repository
 public interface UserRepository extends JpaRepository<User, Long> {
 
-    // =========================================================================
-    // BÚSQUEDAS POR CAMPO ÚNICO
-    // =========================================================================
-
     /**
-     * Busca un usuario por email.
-     *
-     * SQL generada: SELECT * FROM users WHERE email = ?
-     *
-     * Uso: Autenticación (login), recuperación de cuenta.
-     *
-     * @param email Email del usuario
-     * @return Optional con el usuario si existe, vacío si no
+     * Recupera un usuario basándose en su dirección de correo electrónico.
+     * @param email Correo electrónico del usuario.
+     * @return Un Optional que contiene el usuario si se encuentra.
      */
     Optional<User> findByEmail(String email);
 
     /**
-     * Busca un usuario por email SOLO si está activo.
-     *
-     * SQL generada: SELECT * FROM users WHERE email = ? AND is_active = true
-     *
-     * Uso: Login — los usuarios desactivados no pueden autenticarse.
-     * Es preferible a findByEmail() en el flujo de autenticación.
-     *
-     * @param email Email del usuario
-     * @return Optional con el usuario activo si existe
+     * Recupera un usuario por email únicamente si su cuenta está habilitada.
+     * @param email Correo electrónico del usuario.
+     * @return Un Optional con el usuario activo si existe.
      */
     Optional<User> findByEmailAndIsActiveTrue(String email);
 
     /**
-     * Busca un usuario por DNI.
-     *
-     * SQL generada: SELECT * FROM users WHERE dni = ?
-     *
-     * Uso: Verificar duplicados antes de registrar un nuevo usuario.
-     *
-     * @param dni DNI en formato español (ej: 12345678A)
-     * @return Optional con el usuario si existe, vacío si no
+     * Localiza un usuario mediante su número de DNI.
+     * @param dni Documento Nacional de Identidad.
+     * @return Un Optional con el usuario si se encuentra.
      */
     Optional<User> findByDni(String dni);
 
-    // =========================================================================
-    // BÚSQUEDAS POR ROL
-    // =========================================================================
-
     /**
-     * Devuelve todos los usuarios con un rol concreto.
-     *
-     * SQL generada: SELECT * FROM users WHERE role = ?
-     *
-     * Uso: Listar todos los clientes (panel admin), verificar si
-     * existe un admin registrado durante el setup inicial.
-     *
-     * @param role Rol a filtrar (Role.ADMIN o Role.CLIENT)
-     * @return Lista de usuarios con ese rol (puede estar vacía)
+     * Obtiene un listado de usuarios filtrado por su rol en el sistema.
+     * @param role Rol a filtrar (ADMIN o CLIENT).
+     * @return Lista de usuarios con el rol especificado.
      */
     List<User> findByRole(Role role);
 
     /**
-     * Devuelve todos los usuarios activos con un rol concreto.
-     *
-     * SQL generada: SELECT * FROM users WHERE role = ? AND is_active = true
-     *
-     * Uso: Listar solo clientes activos en el panel de administración.
-     *
-     * @param role Rol a filtrar
-     * @return Lista de usuarios activos con ese rol
+     * Obtiene un listado de usuarios activos que poseen un rol determinado.
+     * @param role Rol a filtrar.
+     * @return Lista de usuarios activos con el rol especificado.
      */
     List<User> findByRoleAndIsActiveTrue(Role role);
 
-    // =========================================================================
-    // VERIFICACIONES DE EXISTENCIA (para validaciones de unicidad)
-    // =========================================================================
-
     /**
-     * Comprueba si ya existe un usuario registrado con ese email.
-     *
-     * SQL generada: SELECT COUNT(*) > 0 FROM users WHERE email = ?
-     *
-     * Uso: Validar antes de registrar un nuevo usuario que el email
-     * no esté ya en uso. Más eficiente que findByEmail() porque
-     * no carga el objeto completo — solo comprueba existencia.
-     *
-     * @param email Email a verificar
-     * @return true si ya existe un usuario con ese email
+     * Verifica la existencia de un usuario con un email específico.
+     * @param email Correo a comprobar.
+     * @return true si el email ya está registrado.
      */
     boolean existsByEmail(String email);
 
     /**
-     * Comprueba si ya existe un usuario registrado con ese DNI.
-     *
-     * SQL generada: SELECT COUNT(*) > 0 FROM users WHERE dni = ?
-     *
-     * Uso: Validar unicidad del DNI al registrar un nuevo usuario.
-     *
-     * @param dni DNI a verificar
-     * @return true si ya existe un usuario con ese DNI
+     * Verifica la existencia de un usuario con un DNI específico.
+     * @param dni DNI a comprobar.
+     * @return true si el DNI ya está registrado.
      */
     boolean existsByDni(String dni);
 }
