@@ -21,54 +21,57 @@ import java.util.List;
 @Builder
 public class Service {
 
+    /** Identificador único del servicio. */
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    // name VARCHAR(100) NOT NULL + UNIQUE
+    /** Nombre descriptivo del servicio (ej. Corte de Jamón). */
     @NotBlank(message = "El nombre del servicio es obligatorio")
     @Size(max = 100, message = "El nombre no puede exceder los 100 caracteres")
     @Column(nullable = false, unique = true, length = 100)
     private String name;
 
-    // description TEXT
+    /** Detalles extensos sobre lo que incluye el servicio. */
     @Size(max = 1000, message = "La descripción es demasiado larga")
     @Column(columnDefinition = "TEXT")
     private String description;
 
-    // duration_minutes INT UNSIGNED NOT NULL + CHECK > 0
+    /** Tiempo estimado en minutos para la realización del servicio. */
     @NotNull(message = "La duración es obligatoria")
     @Positive(message = "La duración en minutos debe ser mayor a 0")
     @Column(name = "duration_minutes", nullable = false)
     private Integer durationMinutes;
 
-    // base_price DECIMAL(10,2) NOT NULL + CHECK >= 0
+    /** Coste base del servicio (Manejado con precisión decimal). */
     @NotNull(message = "El precio base es obligatorio")
     @DecimalMin(value = "0.0", inclusive = true, message = "El precio base no puede ser negativo")
     @Column(name = "base_price", nullable = false, precision = 10, scale = 2)
     private BigDecimal basePrice;
 
-    // is_active BOOLEAN NOT NULL DEFAULT TRUE
+    /** Indica si el servicio está actualmente ofertado en el catálogo. */
     @Column(name = "is_active", nullable = false)
     @Builder.Default
     private Boolean isActive = true;
 
-    // =================================================================================
-    // RELACIONES (1:N)
-    // =================================================================================
-    // Un servicio puede estar incluido en muchas reservas.
+    /** Listado de reservas que han contratado este servicio específico. */
     @OneToMany(mappedBy = "service", fetch = FetchType.LAZY, cascade = CascadeType.ALL)
     @Builder.Default
     private List<Reservation> reservations = new ArrayList<>();
 
-    // =================================================================================
-    // MÉTODOS DE UTILIDAD
-    // =================================================================================
+    /**
+     * Vincula una nueva reserva a este servicio.
+     * @param reservation La reserva a vincular.
+     */
     public void addReservation(Reservation reservation) {
         reservations.add(reservation);
         reservation.setService(this);
     }
 
+    /**
+     * Desvincula una reserva del catálogo.
+     * @param reservation La reserva a desvincular.
+     */
     public void removeReservation(Reservation reservation) {
         reservations.remove(reservation);
         reservation.setService(null);
