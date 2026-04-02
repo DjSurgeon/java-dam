@@ -119,6 +119,11 @@ public class CalendarController implements Initializable {
 
         AppDTO.ServiceResponse servicio = servicios.get(idx);
 
+        if (cortadores.isEmpty()) {
+            legendInfoLabel.setText("⚠ No hay cortadores activos disponibles.");
+            return;
+        }
+
         calendarGrid.getChildren().clear();
         calendarGrid.getColumnConstraints().clear();
         calendarGrid.getRowConstraints().clear();
@@ -135,6 +140,18 @@ public class CalendarController implements Initializable {
             AppDTO.CarverResponse carver = cortadores.get(col);
             VBox header = buildCarverHeader(carver);
             calendarGrid.add(header, col + 1, 0);
+        }
+
+        // Añadir etiquetas de hora ANTES de lanzar hilos (evita race condition con col==0)
+        LocalTime h = HORA_INICIO;
+        int r = 1;
+        while (h.isBefore(HORA_FIN)) {
+            Label horaLabel = new Label(h.toString());
+            horaLabel.getStyleClass().add("calendar-hour-label");
+            horaLabel.setPrefWidth(55);
+            calendarGrid.add(horaLabel, 0, r);
+            h = h.plusMinutes(30);
+            r++;
         }
 
         // Para cada cortador cargar sus slots en paralelo
@@ -196,19 +213,7 @@ public class CalendarController implements Initializable {
             row++;
         }
 
-        // Anadir etiquetas de hora en la primera pasada (col 0)
-        if (col == 0) {
-            LocalTime h = HORA_INICIO;
-            int r = 1;
-            while (h.isBefore(HORA_FIN)) {
-                Label horaLabel = new Label(h.toString());
-                horaLabel.getStyleClass().add("calendar-hour-label");
-                horaLabel.setPrefWidth(55);
-                calendarGrid.add(horaLabel, 0, r);
-                h = h.plusMinutes(30);
-                r++;
-            }
-        }
+        // Las etiquetas de hora se añaden en handleBuscarDisponibilidad antes de los hilos
     }
 
     // ── Slot seleccionado → booking-form ─────────────────────────
@@ -246,9 +251,20 @@ public class CalendarController implements Initializable {
     // ── Navegacion ───────────────────────────────────────────────
 
     @FXML private void goToDashboard()     { navigateTo("/com/hambooking/frontend/fxml/client-dashboard.fxml", "HamBooking"); }
-    @FXML private void goToReservations()  { /* TODO */ }
-    @FXML private void goToProfile()       { /* TODO */ }
-    @FXML private void goToNotifications() { /* TODO */ }
+    @FXML private void goToReservations() {
+        navigateTo("/com/hambooking/frontend/fxml/client-dashboard.fxml",
+                "HamBooking - Mi Panel");
+    }
+
+    @FXML private void goToProfile() {
+        navigateTo("/com/hambooking/frontend/fxml/profile.fxml",
+                "HamBooking - Mi Perfil");
+    }
+
+    @FXML private void goToNotifications() {
+        navigateTo("/com/hambooking/frontend/fxml/notifications.fxml",
+                "HamBooking - Notificaciones");
+    }
     @FXML private void handleLogout() {
         SessionManager.getInstance().clear();
         navigateTo("/com/hambooking/frontend/fxml/login.fxml", "HamBooking - Iniciar sesion");
@@ -260,7 +276,7 @@ public class CalendarController implements Initializable {
         VBox box = new VBox(2);
         box.getStyleClass().add("calendar-carver-header");
         box.setPrefWidth(140);
-        Label nameLabel = new Label("Cortador #" + carver.id);
+        Label nameLabel = new Label(carver.firstName != null ? carver.firstName + " " + carver.lastName : "Cortador #" + carver.id);
         nameLabel.setStyle("-fx-font-weight:bold; -fx-font-size:12px;");
         Label subLabel = new Label(carver.specialty != null ? carver.specialty : "General");
         subLabel.setStyle("-fx-font-size:10px; -fx-text-fill:#9A7B6A;");

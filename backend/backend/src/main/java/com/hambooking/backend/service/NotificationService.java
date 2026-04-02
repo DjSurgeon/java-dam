@@ -1,8 +1,10 @@
 package com.hambooking.backend.service;
 
 import com.hambooking.backend.dto.notification.NotificationResponseDTO;
+import com.hambooking.backend.exception.ResourceNotFoundException;
 import com.hambooking.backend.model.entity.Notification;
 import com.hambooking.backend.model.entity.Reservation;
+import com.hambooking.backend.model.entity.User;
 import com.hambooking.backend.model.enums.NotificationType;
 import com.hambooking.backend.model.enums.RecipientType;
 import com.hambooking.backend.model.enums.Role;
@@ -31,11 +33,10 @@ public class NotificationService {
     }
 
     // ─────────────────────────────────────────
-    // Método principal — genera 3 notificaciones por evento
+    // Genera 3 notificaciones por evento
     // ─────────────────────────────────────────
     @Transactional
     public void sendReservationNotification(Reservation reservation, NotificationType type) {
-
         String subject = buildSubject(type, reservation);
 
         sendSingle(reservation, type, RecipientType.CLIENT,
@@ -46,47 +47,47 @@ public class NotificationService {
                 reservation.getCarver().getUser().getEmail(), subject,
                 buildCarverMessage(type, reservation));
 
-        String adminEmail = userRepository.findByRole(Role.ADMIN)
-                .stream()
-                .findFirst()
-                .map(u -> u.getEmail())
-                .orElse("admin@hambooking.com");
+        String adminEmail = userRepository.findByRole(Role.ADMIN).stream()
+                .findFirst().map(User::getEmail).orElse("admin@hambooking.com");
 
         sendSingle(reservation, type, RecipientType.ADMIN,
-                adminEmail, subject,
-                buildAdminMessage(type, reservation));
+                adminEmail, subject, buildAdminMessage(type, reservation));
     }
 
     // ─────────────────────────────────────────
-    // LISTAR TODAS LAS NOTIFICACIONES  ← NUEVO
+    // LISTAR TODAS (admin)
     // ─────────────────────────────────────────
     @Transactional(readOnly = true)
     public List<NotificationResponseDTO> listAllNotifications() {
-        return notificationRepository.findAll()
-                .stream()
-                .map(this::toDTO)
-                .collect(Collectors.toList());
+        return notificationRepository.findAll().stream()
+                .map(this::toDTO).collect(Collectors.toList());
     }
 
     // ─────────────────────────────────────────
-    // Consulta — historial por reserva
+    // LISTAR POR USUARIO (cliente)  ← NUEVO
+    // ─────────────────────────────────────────
+    @Transactional(readOnly = true)
+    public List<NotificationResponseDTO> listByUser(Long userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("Usuario no encontrado"));
+        return notificationRepository.findByRecipientEmail(user.getEmail())
+                .stream().map(this::toDTO).collect(Collectors.toList());
+    }
+
+    // ─────────────────────────────────────────
+    // Historial por reserva
     // ─────────────────────────────────────────
     @Transactional(readOnly = true)
     public List<NotificationResponseDTO> getNotificationsByReservation(Reservation reservation) {
         return notificationRepository.findByReservation(reservation)
-                .stream()
-                .map(this::toDTO)
-                .collect(Collectors.toList());
+                .stream().map(this::toDTO).collect(Collectors.toList());
     }
 
-    // ─────────────────────────────────────────
-    // Privados — construcción y persistencia
-    // ─────────────────────────────────────────
+    // ── Privados ─────────────────────────────
     private void sendSingle(Reservation reservation, NotificationType type,
                             RecipientType recipientType, String email,
                             String subject, String message) {
-
-        Notification notification = Notification.builder()
+        Notification n = Notification.builder()
                 .reservation(reservation)
                 .notificationType(type)
                 .recipientType(recipientType)
@@ -95,86 +96,68 @@ public class NotificationService {
                 .message(message)
                 .isSent(true)
                 .build();
-
-        notificationRepository.save(notification);
-
-        logger.info("[NOTIFICATION] {} → {} | {} | {}",
-                type, recipientType, email, subject);
+        notificationRepository.save(n);
+        logger.info("[NOTIFICATION] {} → {} | {} | {}", type, recipientType, email, subject);
     }
 
-    private String buildSubject(NotificationType type, Reservation reservation) {
+    private String buildSubject(NotificationType type, Reservation r) {
         return switch (type) {
-            case CREATED   -> "Nueva reserva confirmada - " + reservation.getService().getName();
-            case MODIFIED  -> "Reserva modificada - " + reservation.getService().getName();
-            case CANCELLED -> "Reserva cancelada - " + reservation.getService().getName();
-            case REMINDER  -> "Recordatorio de reserva - " + reservation.getService().getName();
+            case CREATED   -> "Nueva reserva confirmada - " + r.getService().getName();
+            case MODIFIED  -> "Reserva modificada - " + r.getService().getName();
+            case CANCELLED -> "Reserva cancelada - " + r.getService().getName();
+            case REMINDER  -> "Recordatorio de reserva - " + r.getService().getName();
         };
     }
 
-    private String buildClientMessage(NotificationType type, Reservation reservation) {
-        String base = "Hola " + reservation.getClient().getFirstName() + ",\n\n";
+    private String buildClientMessage(NotificationType type, Reservation r) {
+        String base = "Hola " + r.getClient().getFirstName() + ",\n\n";
         return base + switch (type) {
-            case CREATED   -> "Tu reserva de " + reservation.getService().getName()
-                    + " ha sido creada para el " + reservation.getReservationDate()
-                    + " a las " + reservation.getStartTime() + ".";
-            case MODIFIED  -> "Tu reserva de " + reservation.getService().getName()
-                    + " ha sido modificada. Nueva fecha: " + reservation.getReservationDate()
-                    + " a las " + reservation.getStartTime() + ".";
-            case CANCELLED -> "Tu reserva de " + reservation.getService().getName()
-                    + " del " + reservation.getReservationDate() + " ha sido cancelada.";
-            case REMINDER  -> "Recuerda que tienes una reserva de " + reservation.getService().getName()
-                    + " mañana " + reservation.getReservationDate()
-                    + " a las " + reservation.getStartTime() + ".";
+            case CREATED   -> "Tu reserva de " + r.getService().getName()
+                    + " ha sido creada para el " + r.getReservationDate()
+                    + " a las " + r.getStartTime() + ".";
+            case MODIFIED  -> "Tu reserva de " + r.getService().getName()
+                    + " ha sido modificada. Nueva fecha: " + r.getReservationDate()
+                    + " a las " + r.getStartTime() + ".";
+            case CANCELLED -> "Tu reserva de " + r.getService().getName()
+                    + " del " + r.getReservationDate() + " ha sido cancelada.";
+            case REMINDER  -> "Recuerda tu reserva de " + r.getService().getName()
+                    + " mañana " + r.getReservationDate() + " a las " + r.getStartTime() + ".";
         };
     }
 
-    private String buildCarverMessage(NotificationType type, Reservation reservation) {
-        String base = "Hola " + reservation.getCarver().getUser().getFirstName() + ",\n\n";
+    private String buildCarverMessage(NotificationType type, Reservation r) {
+        String base = "Hola " + r.getCarver().getUser().getFirstName() + ",\n\n";
         return base + switch (type) {
-            case CREATED   -> "Tienes una nueva reserva de " + reservation.getService().getName()
-                    + " el " + reservation.getReservationDate()
-                    + " a las " + reservation.getStartTime() + ".";
-            case MODIFIED  -> "Una reserva de " + reservation.getService().getName()
-                    + " ha sido modificada. Nueva fecha: " + reservation.getReservationDate()
-                    + " a las " + reservation.getStartTime() + ".";
-            case CANCELLED -> "La reserva de " + reservation.getService().getName()
-                    + " del " + reservation.getReservationDate() + " ha sido cancelada.";
-            case REMINDER  -> "Recuerda que tienes una reserva de " + reservation.getService().getName()
-                    + " mañana " + reservation.getReservationDate()
-                    + " a las " + reservation.getStartTime() + ".";
+            case CREATED   -> "Nueva reserva de " + r.getService().getName()
+                    + " el " + r.getReservationDate() + " a las " + r.getStartTime() + ".";
+            case MODIFIED  -> "Reserva modificada. Nueva fecha: " + r.getReservationDate()
+                    + " a las " + r.getStartTime() + ".";
+            case CANCELLED -> "Reserva de " + r.getService().getName()
+                    + " del " + r.getReservationDate() + " cancelada.";
+            case REMINDER  -> "Recuerda tu reserva de " + r.getService().getName()
+                    + " mañana " + r.getReservationDate() + " a las " + r.getStartTime() + ".";
         };
     }
 
-    private String buildAdminMessage(NotificationType type, Reservation reservation) {
-        String clientName = reservation.getClient().getFirstName()
-                + " " + reservation.getClient().getLastName();
-        String carverName = reservation.getCarver().getUser().getFirstName()
-                + " " + reservation.getCarver().getUser().getLastName();
+    private String buildAdminMessage(NotificationType type, Reservation r) {
+        String client = r.getClient().getFirstName() + " " + r.getClient().getLastName();
+        String carver = r.getCarver().getUser().getFirstName() + " " + r.getCarver().getUser().getLastName();
         return switch (type) {
-            case CREATED   -> "Nueva reserva creada. Cliente: " + clientName
-                    + " | Cortador: " + carverName
-                    + " | Servicio: " + reservation.getService().getName()
-                    + " | Fecha: " + reservation.getReservationDate()
-                    + " | Hora: " + reservation.getStartTime();
-            case MODIFIED  -> "Reserva modificada. Cliente: " + clientName
-                    + " | Cortador: " + carverName
-                    + " | Nueva fecha: " + reservation.getReservationDate()
-                    + " | Nueva hora: " + reservation.getStartTime();
-            case CANCELLED -> "Reserva cancelada. Cliente: " + clientName
-                    + " | Cortador: " + carverName
-                    + " | Servicio: " + reservation.getService().getName()
-                    + " | Fecha: " + reservation.getReservationDate();
-            case REMINDER  -> "Recordatorio enviado. Cliente: " + clientName
-                    + " | Servicio: " + reservation.getService().getName()
-                    + " | Fecha: " + reservation.getReservationDate();
+            case CREATED   -> "Nueva reserva. Cliente: " + client + " | Cortador: " + carver
+                    + " | " + r.getService().getName() + " | " + r.getReservationDate() + " " + r.getStartTime();
+            case MODIFIED  -> "Reserva modificada. Cliente: " + client
+                    + " | Nueva fecha: " + r.getReservationDate() + " " + r.getStartTime();
+            case CANCELLED -> "Reserva cancelada. Cliente: " + client + " | Cortador: " + carver
+                    + " | " + r.getService().getName() + " | " + r.getReservationDate();
+            case REMINDER  -> "Recordatorio. Cliente: " + client
+                    + " | " + r.getService().getName() + " | " + r.getReservationDate();
         };
     }
 
     private NotificationResponseDTO toDTO(Notification n) {
-        Long reservationId = n.getReservation() != null ? n.getReservation().getId() : null;
         return new NotificationResponseDTO(
                 n.getId(),
-                reservationId,
+                n.getReservation() != null ? n.getReservation().getId() : null,
                 n.getRecipientType(),
                 n.getRecipientEmail(),
                 n.getNotificationType(),

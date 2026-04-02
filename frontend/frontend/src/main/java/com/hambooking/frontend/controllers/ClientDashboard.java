@@ -239,18 +239,18 @@ public class ClientDashboard implements Initializable {
     }
 
     @FXML private void goToReservations() {
-        // Historial ya visible en la misma pantalla — scroll a la tabla
         historialTable.requestFocus();
+        historialTable.scrollTo(0);
     }
 
     @FXML private void goToProfile() {
-        mostrarAlerta(Alert.AlertType.INFORMATION,
-                "Perfil", "Funcionalidad disponible en una pr\u00f3xima versi\u00f3n.");
+        navigateTo("/com/hambooking/frontend/fxml/profile.fxml",
+                "HamBooking - Mi Perfil");
     }
 
     @FXML private void goToNotifications() {
-        mostrarAlerta(Alert.AlertType.INFORMATION,
-                "Notificaciones", "Funcionalidad disponible en una pr\u00f3xima versi\u00f3n.");
+        navigateTo("/com/hambooking/frontend/fxml/notifications.fxml",
+                "HamBooking - Notificaciones");
     }
 
     @FXML private void handleLogout() {

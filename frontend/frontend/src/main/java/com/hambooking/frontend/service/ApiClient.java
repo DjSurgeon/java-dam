@@ -127,6 +127,16 @@ public class ApiClient {
 
     // ── PUT ──────────────────────────────────────────────────────
 
+    public void put(String endpoint, Object body) throws ApiException {
+        try {
+            put(endpoint, objectMapper.writeValueAsString(body));
+        } catch (ApiException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new ApiException("No se pudo conectar con el servidor.", 0);
+        }
+    }
+
     public void put(String endpoint, String jsonBody) throws ApiException {
         try {
             HttpRequest request = HttpRequest.newBuilder()

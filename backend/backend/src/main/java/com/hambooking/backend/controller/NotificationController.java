@@ -17,9 +17,16 @@ public class NotificationController {
         this.notificationService = notificationService;
     }
 
-    // GET /api/notifications  (panel admin: todas las notificaciones)
+    // GET /api/notifications  (admin: todas)
     @GetMapping
     public ResponseEntity<List<NotificationResponseDTO>> listAllNotifications() {
         return ResponseEntity.ok(notificationService.listAllNotifications());
+    }
+
+    // GET /api/notifications/user/{userId}  (cliente: las suyas)
+    @GetMapping("/user/{userId}")
+    public ResponseEntity<List<NotificationResponseDTO>> listByUser(
+            @PathVariable Long userId) {
+        return ResponseEntity.ok(notificationService.listByUser(userId));
     }
 }
