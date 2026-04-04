@@ -7,42 +7,44 @@ import com.hambooking.backend.exception.InvalidCredentialsException;
 import com.hambooking.backend.model.entity.User;
 import com.hambooking.backend.model.enums.Role;
 import com.hambooking.backend.repository.UserRepository;
+import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+/**
+ * Servicio encargado de la gestión de autenticación y registro de usuarios.
+ * Implementa la lógica de verificación de credenciales y el cifrado de contraseñas.
+ */
 @Service
+@RequiredArgsConstructor
 public class AuthService {
 
+    /** Repositorio de usuarios para realizar consultas y persistencia. */
     private final UserRepository userRepository;
+
+    /** Codificador de contraseñas BCrypt para verificar y encriptar credenciales. */
     private final BCryptPasswordEncoder passwordEncoder;
 
-    // Inyección por constructor — la forma correcta en Spring
-    public AuthService(UserRepository userRepository, BCryptPasswordEncoder passwordEncoder) {
-        this.userRepository = userRepository;
-        this.passwordEncoder = passwordEncoder;
-    }
-
-    // ─────────────────────────────────────────
-    // LOGIN
-    // ─────────────────────────────────────────
+    /**
+     * Realiza el proceso de inicio de sesión verificando las credenciales y el estado del usuario.
+     *
+     * @param request DTO con email y contraseña.
+     * @return DTO con la información de perfil tras el login exitoso.
+     * @throws InvalidCredentialsException Si las credenciales son incorrectas o la cuenta está desactivada.
+     */
     public LoginResponseDTO login(LoginRequestDTO request) {
-
-        // 1. Buscar usuario por email
         User user = userRepository.findByEmail(request.getEmail())
                 .orElseThrow(() -> new InvalidCredentialsException("Email o contraseña incorrectos"));
 
-        // 2. Verificar contraseña contra el hash en BD
         if (!passwordEncoder.matches(request.getPassword(), user.getPasswordHash())) {
             throw new InvalidCredentialsException("Email o contraseña incorrectos");
         }
 
-        // 3. Verificar que el usuario está activo
         if (!user.getIsActive()) {
             throw new InvalidCredentialsException("Esta cuenta está desactivada");
         }
 
-        // 4. Construir y devolver respuesta
         return new LoginResponseDTO(
                 user.getId(),
                 user.getFirstName(),
@@ -52,21 +54,23 @@ public class AuthService {
         );
     }
 
-    // ─────────────────────────────────────────
-    // REGISTRO
-    // ─────────────────────────────────────────
+    /**
+     * Registra un nuevo cliente en el sistema tras validar la unicidad de sus datos.
+     *
+     * @param request DTO con los datos del formulario de registro.
+     * @return DTO con la información del usuario recién creado.
+     * @throws InvalidCredentialsException Si el email o el DNI ya están registrados.
+     */
     @Transactional
     public LoginResponseDTO register(RegisterRequestDTO request) {
-
-        // 1. Verificar que el email no está en uso
         if (userRepository.findByEmail(request.getEmail()).isPresent()) {
             throw new InvalidCredentialsException("Este email ya está registrado");
         }
-        // 2. Verificar que el DNI no está en uso
+        
         if (userRepository.findByDni(request.getDni()).isPresent()) {
             throw new InvalidCredentialsException("Este DNI ya está registrado");
         }
-        // 3. Construir el nuevo usuario
+
         User newUser = new User();
         newUser.setDni(request.getDni());
         newUser.setFirstName(request.getFirstName());
@@ -77,10 +81,8 @@ public class AuthService {
         newUser.setRole(Role.CLIENT);
         newUser.setIsActive(true);
 
-        // 3. Guardar en BD
         User savedUser = userRepository.save(newUser);
 
-        // 4. Devolver respuesta como si fuera un login
         return new LoginResponseDTO(
                 savedUser.getId(),
                 savedUser.getFirstName(),

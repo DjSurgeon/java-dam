@@ -10,6 +10,7 @@ import com.hambooking.backend.model.enums.RecipientType;
 import com.hambooking.backend.model.enums.Role;
 import com.hambooking.backend.repository.NotificationRepository;
 import com.hambooking.backend.repository.UserRepository;
+import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -18,23 +19,29 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
 import java.util.stream.Collectors;
 
+/**
+ * Servicio encargado de gestionar el envío y consulta de notificaciones del sistema.
+ */
 @Service
+@RequiredArgsConstructor
 public class NotificationService {
 
+    /** Logger de la clase para registro de eventos de notificación. */
     private static final Logger logger = LoggerFactory.getLogger(NotificationService.class);
 
+    /** Repositorio de notificaciones para persistencia y consulta. */
     private final NotificationRepository notificationRepository;
+    
+    /** Repositorio de usuarios para buscar administradores y validar correos. */
     private final UserRepository userRepository;
 
-    public NotificationService(NotificationRepository notificationRepository,
-                               UserRepository userRepository) {
-        this.notificationRepository = notificationRepository;
-        this.userRepository = userRepository;
-    }
-
-    // ─────────────────────────────────────────
-    // Genera 3 notificaciones por evento
-    // ─────────────────────────────────────────
+    /**
+     * Genera y envía tres notificaciones por cada evento de reserva:
+     * una al cliente, una al cortador y otra al administrador.
+     *
+     * @param reservation La reserva asociada al evento.
+     * @param type El tipo de notificación (CREADA, MODIFICADA, CANCELADA, RECORDATORIO).
+     */
     @Transactional
     public void sendReservationNotification(Reservation reservation, NotificationType type) {
         String subject = buildSubject(type, reservation);
@@ -54,18 +61,24 @@ public class NotificationService {
                 adminEmail, subject, buildAdminMessage(type, reservation));
     }
 
-    // ─────────────────────────────────────────
-    // LISTAR TODAS (admin)
-    // ─────────────────────────────────────────
+    /**
+     * Lista todas las notificaciones registradas en el sistema (ideal para administradores).
+     *
+     * @return Lista de DTOs con la información de todas las notificaciones.
+     */
     @Transactional(readOnly = true)
     public List<NotificationResponseDTO> listAllNotifications() {
         return notificationRepository.findAll().stream()
                 .map(this::toDTO).collect(Collectors.toList());
     }
 
-    // ─────────────────────────────────────────
-    // LISTAR POR USUARIO (cliente)  ← NUEVO
-    // ─────────────────────────────────────────
+    /**
+     * Lista todas las notificaciones dirigidas a un usuario específico.
+     *
+     * @param userId Identificador del usuario.
+     * @return Lista de DTOs con las notificaciones del usuario.
+     * @throws ResourceNotFoundException Si el usuario no existe.
+     */
     @Transactional(readOnly = true)
     public List<NotificationResponseDTO> listByUser(Long userId) {
         User user = userRepository.findById(userId)
@@ -74,16 +87,28 @@ public class NotificationService {
                 .stream().map(this::toDTO).collect(Collectors.toList());
     }
 
-    // ─────────────────────────────────────────
-    // Historial por reserva
-    // ─────────────────────────────────────────
+    /**
+     * Obtiene el historial de notificaciones asociadas a una reserva específica.
+     *
+     * @param reservation Entidad de la reserva.
+     * @return Lista de DTOs de notificaciones vinculadas a la reserva.
+     */
     @Transactional(readOnly = true)
     public List<NotificationResponseDTO> getNotificationsByReservation(Reservation reservation) {
         return notificationRepository.findByReservation(reservation)
                 .stream().map(this::toDTO).collect(Collectors.toList());
     }
 
-    // ── Privados ─────────────────────────────
+    /**
+     * Método auxiliar para registrar y enviar una notificación individual.
+     *
+     * @param reservation Entidad de la reserva.
+     * @param type Tipo de notificación.
+     * @param recipientType Tipo de destinatario.
+     * @param email Correo electrónico del destinatario.
+     * @param subject Asunto del correo.
+     * @param message Cuerpo del mensaje.
+     */
     private void sendSingle(Reservation reservation, NotificationType type,
                             RecipientType recipientType, String email,
                             String subject, String message) {
@@ -100,6 +125,13 @@ public class NotificationService {
         logger.info("[NOTIFICATION] {} → {} | {} | {}", type, recipientType, email, subject);
     }
 
+    /**
+     * Construye el asunto del correo electrónico según el tipo de notificación.
+     *
+     * @param type Tipo de notificación.
+     * @param r Reserva asociada.
+     * @return Cadena con el asunto.
+     */
     private String buildSubject(NotificationType type, Reservation r) {
         return switch (type) {
             case CREATED   -> "Nueva reserva confirmada - " + r.getService().getName();
@@ -109,6 +141,13 @@ public class NotificationService {
         };
     }
 
+    /**
+     * Construye el mensaje personalizado para el cliente.
+     *
+     * @param type Tipo de notificación.
+     * @param r Reserva asociada.
+     * @return Cadena con el mensaje para el cliente.
+     */
     private String buildClientMessage(NotificationType type, Reservation r) {
         String base = "Hola " + r.getClient().getFirstName() + ",\n\n";
         return base + switch (type) {
@@ -125,6 +164,13 @@ public class NotificationService {
         };
     }
 
+    /**
+     * Construye el mensaje personalizado para el cortador.
+     *
+     * @param type Tipo de notificación.
+     * @param r Reserva asociada.
+     * @return Cadena con el mensaje para el cortador.
+     */
     private String buildCarverMessage(NotificationType type, Reservation r) {
         String base = "Hola " + r.getCarver().getUser().getFirstName() + ",\n\n";
         return base + switch (type) {
@@ -139,6 +185,13 @@ public class NotificationService {
         };
     }
 
+    /**
+     * Construye el resumen del evento para el administrador.
+     *
+     * @param type Tipo de notificación.
+     * @param r Reserva asociada.
+     * @return Cadena con el resumen para el administrador.
+     */
     private String buildAdminMessage(NotificationType type, Reservation r) {
         String client = r.getClient().getFirstName() + " " + r.getClient().getLastName();
         String carver = r.getCarver().getUser().getFirstName() + " " + r.getCarver().getUser().getLastName();
@@ -154,6 +207,12 @@ public class NotificationService {
         };
     }
 
+    /**
+     * Convierte una entidad Notification a su correspondiente DTO.
+     *
+     * @param n Entidad a convertir.
+     * @return Objeto NotificationResponseDTO con los datos mapeados.
+     */
     private NotificationResponseDTO toDTO(Notification n) {
         return new NotificationResponseDTO(
                 n.getId(),
