@@ -1,26 +1,29 @@
 package com.hambooking.backend.model.enums;
 
 /**
- * Enum que representa los roles de usuario en el sistema.
- *
- * DECISIÓN DE DISEÑO:
- * - Solo 2 roles en v1.0: ADMIN (administrador único) y CLIENT (clientes)
+ * Representa los niveles de acceso y permisos (Roles) dentro del sistema HamBooking.
  */
 public enum Role {
+
+    /** Rol con privilegios totales de gestión y administración. */
     ADMIN("Administrador"),
+
+    /** Rol para usuarios finales que realizan reservas de servicios. */
     CLIENT("Cliente");
 
     private final String displayName;
 
     /**
-     * @param displayName Nombre legible para humanos
+     * Constructor del enum con nombre legible.
+     * @param displayName Nombre amigable del rol para humanos.
      */
     Role(String displayName) {
         this.displayName = displayName;
     }
 
     /**
-     * @return Nombre amigable del rol
+     * Obtiene el nombre amigable del rol.
+     * @return Cadena de texto representativa del rol.
      */
     public String getDisplayName() {
         return displayName;

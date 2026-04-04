@@ -27,85 +27,70 @@ import java.util.List;
 @Builder
 public class Reservation {
 
+    /** Identificador único de la reserva. */
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    // =================================================================================
-    // RELACIONES (MANY-TO-ONE) - EL CORAZÓN DE LA RESERVA
-    // =================================================================================
-
-    // 1. ¿QUIÉN RESERVA? (client_id)
+    /** Cliente (Usuario) que realiza la reserva. */
     @NotNull(message = "El cliente es obligatorio")
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "client_id", nullable = false)
     private User client;
 
-    // 2. ¿QUIÉN CORTA? (carver_id)
+    /** Cortador profesional asignado a la reserva. */
     @NotNull(message = "El cortador es obligatorio")
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "carver_id", nullable = false)
     private Carver carver;
 
-    // 3. ¿QUÉ SE CORTA? (service_id)
+    /** Tipo de servicio contratado en la reserva. */
     @NotNull(message = "El servicio es obligatorio")
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "service_id", nullable = false)
     private Service service;
 
-    // =================================================================================
-    // DATOS DE LA RESERVA (FECHAS Y HORAS)
-    // =================================================================================
-
-    // reservation_date DATE NOT NULL
+    /** Fecha programada para la prestación del servicio. */
     @NotNull(message = "La fecha de reserva es obligatoria")
     @Future(message = "La fecha de reserva debe ser en el futuro")
     @Column(name = "reservation_date", nullable = false)
     private LocalDate reservationDate;
 
-    // start_time TIME NOT NULL
+    /** Hora exacta de inicio del servicio. */
     @NotNull(message = "La hora de inicio es obligatoria")
     @Column(name = "start_time", nullable = false)
     private LocalTime startTime;
 
-    // end_time TIME NOT NULL
+    /** Hora estimada de finalización del servicio. */
     @NotNull(message = "La hora de fin es obligatoria")
     @Column(name = "end_time", nullable = false)
     private LocalTime endTime;
 
-    // =================================================================================
-    // ESTADO Y METADATOS
-    // =================================================================================
-
-    // status ENUM NOT NULL DEFAULT 'PENDING'
+    /** Estado actual de la reserva (PENDING, CONFIRMED, etc.). */
     @NotNull(message = "El estado es obligatorio")
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     @Builder.Default
     private Status status = Status.PENDING;
 
-    // notes TEXT
+    /** Observaciones o notas adicionales proporcionadas por el cliente. */
     @Column(columnDefinition = "TEXT")
     private String notes;
 
+    /** Fecha y hora en la que se creó la reserva. */
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
 
+    /** Fecha y hora de la última modificación de la reserva. */
     @UpdateTimestamp
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
 
-    // =================================================================================
-    // RELACIONES INVERSAS (NOTIFICACIONES)
-    // =================================================================================
+    /** Historial de notificaciones enviadas con relación a esta reserva. */
     @OneToMany(mappedBy = "reservation", cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default
     private List<Notification> notifications = new ArrayList<>();
-
-    // =================================================================================
-    // LÓGICA DE NEGOCIO (MÉTODOS HELPER)
-    // =================================================================================
 
     /**
      * Calcula automáticamente la hora de fin de la reserva sumando
@@ -117,19 +102,23 @@ public class Reservation {
         }
     }
 
+    /**
+     * Registra una nueva notificación asociada a esta reserva.
+     * @param notification La notificación a registrar.
+     */
     public void addNotification(Notification notification) {
         notifications.add(notification);
         notification.setReservation(this);
     }
 
+    /**
+     * Elimina una notificación del historial de la reserva.
+     * @param notification La notificación a eliminar.
+     */
     public void removeNotification(Notification notification) {
         notifications.remove(notification);
         notification.setReservation(null);
     }
-
-    // =================================================================================
-    // EQUALS, HASHCODE Y TOSTRING SEGUROS
-    // =================================================================================
 
     @Override
     public boolean equals(Object o) {
@@ -146,7 +135,6 @@ public class Reservation {
 
     @Override
     public String toString() {
-        // Sacamos los IDs de forma segura para no cargar los objetos enteros de BD (LazyInitializationException)
         Long clientId = (client != null) ? client.getId() : null;
         Long carverId = (carver != null) ? carver.getId() : null;
         Long serviceId = (service != null) ? service.getId() : null;

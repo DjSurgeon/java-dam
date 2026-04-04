@@ -23,60 +23,62 @@ import java.util.List;
 @Builder
 public class Carver {
 
+    /** Identificador único del perfil de cortador. */
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    // =================================================================================
-    // RELACIÓN PRINCIPAL (OWNER)
-    // =================================================================================
-    // El cortador es el dueño de la relación (tiene la FK user_id en BD)
+    /** Referencia al usuario base (Relación 1:1, dueña de la FK). */
     @OneToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = false, unique = true)
     private User user;
 
-    // =================================================================================
-    // DATOS PROFESIONALES
-    // =================================================================================
+    /** Especialidad técnica del cortador (ej. Jamón de Bellota). */
     @Size(max = 100, message = "La especialidad no puede exceder de los 100 caracteres")
     @Column(length = 100)
     private String specialty;
 
+    /** Cantidad de años de experiencia profesional demostrada. */
     @Min(value = 0, message = "Los años de experiencia no pueden ser negativos")
     @Column(name = "experience_years")
     @Builder.Default
     private Integer experienceYears = 0;
 
+    /** Límite diario de piezas de jamón/paleta que el cortador puede atender. */
     @Min(value = 1, message = "Debe permitir al menos 1 servicio por día")
     @Max(value = 10, message = "El límite máximo de servicios por día es 10")
     @Column(name = "max_hams_per_day")
     @Builder.Default
     private Integer maxHamsPerDay = 3;
 
+    /** Indica si el cortador está disponible para recibir nuevas reservas. */
     @Column(name = "is_active", nullable = false)
     @Builder.Default
     private Boolean isActive = true;
 
+    /** Fecha y hora en la que se habilitó el perfil profesional. */
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
 
-    // =================================================================================
-    // RELACIONES (1:N)
-    // =================================================================================
-    // Un cortador puede atender muchas reservas.
+    /** Listado de reservas asignadas a este cortador. */
     @OneToMany(mappedBy = "carver", fetch = FetchType.LAZY, cascade = CascadeType.ALL)
     @Builder.Default
     private List<Reservation> reservations = new ArrayList<>();
 
-    // =================================================================================
-    // MÉTODOS DE UTILIDAD
-    // =================================================================================
+    /**
+     * Añade una reserva a la planificación del cortador.
+     * @param reservation La reserva a añadir.
+     */
     public void addReservation(Reservation reservation) {
         reservations.add(reservation);
         reservation.setCarver(this);
     }
 
+    /**
+     * Elimina una reserva de la planificación.
+     * @param reservation La reserva a eliminar.
+     */
     public void removeReservation(Reservation reservation) {
         reservations.remove(reservation);
         reservation.setCarver(null);
@@ -97,7 +99,6 @@ public class Carver {
 
     @Override
     public String toString() {
-        // Obtenemos el ID del usuario de forma segura para no provocar un volcado de toda la entidad User
         Long userId = (user != null) ? user.getId() : null;
 
         return "Carver{" +

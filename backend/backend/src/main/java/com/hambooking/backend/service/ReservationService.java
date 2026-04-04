@@ -11,12 +11,13 @@ import com.hambooking.backend.model.entity.Carver;
 import com.hambooking.backend.model.entity.Reservation;
 import com.hambooking.backend.model.entity.Service;
 import com.hambooking.backend.model.entity.User;
-import com.hambooking.backend.model.enums.Status;
 import com.hambooking.backend.model.enums.NotificationType;
+import com.hambooking.backend.model.enums.Status;
 import com.hambooking.backend.repository.CarverRepository;
 import com.hambooking.backend.repository.ReservationRepository;
 import com.hambooking.backend.repository.ServiceRepository;
 import com.hambooking.backend.repository.UserRepository;
+import lombok.RequiredArgsConstructor;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.DayOfWeek;
@@ -24,104 +25,104 @@ import java.time.LocalTime;
 import java.util.List;
 import java.util.stream.Collectors;
 
+/**
+ * Servicio principal de gestión de reservas.
+ * Controla la lógica de negocio para la creación, modificación, confirmación y cancelación de reservas,
+ * aplicando restricciones de horarios, solapamientos y límites diarios.
+ */
 @org.springframework.stereotype.Service
+@RequiredArgsConstructor
 public class ReservationService {
 
+    /** Hora de apertura del local. */
     private static final LocalTime OPENING_TIME = LocalTime.of(10, 0);
+    
+    /** Hora de cierre del local. */
     private static final LocalTime CLOSING_TIME = LocalTime.of(18, 0);
+    
+    /** Límite máximo de reservas que un cliente puede tener activas en un mismo día. */
     private static final int MAX_DAILY_RESERVATIONS_PER_CLIENT = 2;
-    private static final int MAX_DAILY_MINUTES_PER_CARVER = 360; // 6 horas
+    
+    /** Límite máximo de minutos de servicio que un cortador puede asumir al día. */
+    private static final int MAX_DAILY_MINUTES_PER_CARVER = 360;
 
+    /** Repositorio de reservas. */
     private final ReservationRepository reservationRepository;
+    
+    /** Repositorio de usuarios. */
     private final UserRepository userRepository;
+    
+    /** Repositorio de cortadores. */
     private final CarverRepository carverRepository;
+    
+    /** Repositorio de servicios. */
     private final ServiceRepository serviceRepository;
+    
+    /** Servicio de notificaciones para el envío de alertas automáticas. */
     private final NotificationService notificationService;
 
-    public ReservationService(ReservationRepository reservationRepository,
-                              UserRepository userRepository,
-                              CarverRepository carverRepository,
-                              ServiceRepository serviceRepository,
-                              NotificationService notificationService) {
-        this.reservationRepository = reservationRepository;
-        this.userRepository = userRepository;
-        this.carverRepository = carverRepository;
-        this.serviceRepository = serviceRepository;
-        this.notificationService = notificationService;
-    }
-
-    // ─────────────────────────────────────────
-    // CREAR RESERVA
-    // ─────────────────────────────────────────
+    /**
+     * Crea una nueva reserva tras validar múltiples reglas de negocio (horarios, límites y solapamientos).
+     *
+     * @param request DTO con los datos para la creación de la reserva.
+     * @return DTO con la información de la reserva generada.
+     * @throws ResourceNotFoundException Si el cliente, cortador o servicio no existen.
+     * @throws BusinessRuleException Si el cortador no está activo, es fin de semana, o el horario es inválido.
+     * @throws ReservationLimitExceededException Si el cliente o el cortador superan sus límites diarios.
+     * @throws TimeSlotNotAvailableException Si el horario solicitado se solapa con una reserva existente.
+     */
     @Transactional
     public ReservationResponseDTO createReservation(CreateReservationDTO request) {
 
-        // 1. Verificar que existen cliente, cortador y servicio
         User client = userRepository.findById(request.getClientId())
                 .orElseThrow(() -> new ResourceNotFoundException("Cliente no encontrado"));
-
         Carver carver = carverRepository.findById(request.getCarverId())
                 .orElseThrow(() -> new ResourceNotFoundException("Cortador no encontrado"));
-
         Service service = serviceRepository.findById(request.getServiceId())
                 .orElseThrow(() -> new ResourceNotFoundException("Servicio no encontrado"));
 
-        // 2. Verificar que el cortador está activo
         if (!carver.getIsActive()) {
             throw new BusinessRuleException("El cortador seleccionado no está activo");
         }
 
-        // 3. Verificar que es día laborable (lunes a viernes)
         DayOfWeek day = request.getReservationDate().getDayOfWeek();
         if (day == DayOfWeek.SATURDAY || day == DayOfWeek.SUNDAY) {
             throw new BusinessRuleException("Solo se pueden hacer reservas de lunes a viernes");
         }
 
-        // 4. Verificar horario laboral (10:00 a 18:00)
         LocalTime endTime = request.getStartTime().plusMinutes(service.getDurationMinutes());
         if (request.getStartTime().isBefore(OPENING_TIME) || endTime.isAfter(CLOSING_TIME)) {
             throw new BusinessRuleException(
-                    "La reserva debe estar dentro del horario laboral (10:00 - 18:00)"
-            );
+                    "La reserva debe estar dentro del horario laboral (10:00 - 18:00)");
         }
 
-        // 5. Verificar límite diario del cliente (máx 2 reservas por día)
-        int clientDailyReservations = reservationRepository
+        int clientDaily = reservationRepository
                 .countActiveReservationsByClientAndDate(client, request.getReservationDate());
-        if (clientDailyReservations >= MAX_DAILY_RESERVATIONS_PER_CLIENT) {
+        if (clientDaily >= MAX_DAILY_RESERVATIONS_PER_CLIENT) {
             throw new ReservationLimitExceededException(
-                    "Has alcanzado el límite de " + MAX_DAILY_RESERVATIONS_PER_CLIENT + " reservas para ese día"
-            );
+                    "Has alcanzado el límite de " + MAX_DAILY_RESERVATIONS_PER_CLIENT + " reservas para ese día");
         }
 
-        // 6. Verificar límite de horas del cortador (máx 6 horas por día)
-        int carverDailyMinutes = reservationRepository
+        int carverMinutes = reservationRepository
                 .sumActiveMinutesByCarverAndDate(carver, request.getReservationDate());
-        if (carverDailyMinutes + service.getDurationMinutes() > MAX_DAILY_MINUTES_PER_CARVER) {
+        if (carverMinutes + service.getDurationMinutes() > MAX_DAILY_MINUTES_PER_CARVER) {
             throw new ReservationLimitExceededException(
-                    "El cortador ha alcanzado su límite de horas para ese día"
-            );
+                    "El cortador ha alcanzado su límite de horas para ese día");
         }
 
-        // 7. Verificar solapamiento de horario del cortador
-        List<Reservation> existingReservations = reservationRepository
+        List<Reservation> existing = reservationRepository
                 .findByCarverAndReservationDateAndStatusIn(
-                        carver,
-                        request.getReservationDate(),
-                        List.of(Status.PENDING, Status.CONFIRMED)
-                );
+                        carver, request.getReservationDate(),
+                        List.of(Status.PENDING, Status.CONFIRMED));
 
-        for (Reservation existing : existingReservations) {
-            boolean overlaps = request.getStartTime().isBefore(existing.getEndTime())
-                    && endTime.isAfter(existing.getStartTime());
-            if (overlaps) {
+        for (Reservation e : existing) {
+            if (request.getStartTime().isBefore(e.getEndTime())
+                    && endTime.isAfter(e.getStartTime())) {
                 throw new TimeSlotNotAvailableException(
-                        "El cortador ya tiene una reserva en ese horario"
-                );
+                        "El cortador ya tiene una reserva en ese horario");
             }
         }
 
-        // 8. Construir y guardar la reserva
         Reservation reservation = new Reservation();
         reservation.setClient(client);
         reservation.setCarver(carver);
@@ -137,58 +138,75 @@ public class ReservationService {
         return toDTO(saved);
     }
 
-    // ─────────────────────────────────────────
-    // ACTUALIZAR RESERVA
-    // ─────────────────────────────────────────
+    /**
+     * Confirma una reserva que actualmente se encuentra en estado PENDING.
+     *
+     * @param id Identificador de la reserva a confirmar.
+     * @return DTO con la información de la reserva actualizada.
+     * @throws ResourceNotFoundException Si la reserva no existe.
+     * @throws BusinessRuleException Si la reserva no está en estado PENDING.
+     */
     @Transactional
-    public ReservationResponseDTO updateReservation(Long id, UpdateReservationDTO request) {
-
-        // 1. Verificar que la reserva existe
+    public ReservationResponseDTO confirmReservation(Long id) {
         Reservation reservation = reservationRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Reserva no encontrada"));
 
-        // 2. Solo se pueden modificar reservas en estado PENDING
         if (reservation.getStatus() != Status.PENDING) {
             throw new BusinessRuleException(
-                    "Solo se pueden modificar reservas en estado PENDIENTE"
-            );
+                    "Solo se pueden confirmar reservas en estado PENDIENTE");
         }
 
-        // 3. Verificar día laborable
+        reservation.setStatus(Status.CONFIRMED);
+        Reservation confirmed = reservationRepository.save(reservation);
+        return toDTO(confirmed);
+    }
+
+    /**
+     * Actualiza la fecha, hora de inicio o notas de una reserva existente en estado PENDING.
+     *
+     * @param id Identificador de la reserva a actualizar.
+     * @param request DTO con los nuevos datos de la reserva.
+     * @return DTO con la información de la reserva tras la actualización.
+     * @throws ResourceNotFoundException Si la reserva no existe.
+     * @throws BusinessRuleException Si la reserva no es modificable o sus horarios son inválidos.
+     * @throws TimeSlotNotAvailableException Si el nuevo horario se solapa con otra reserva.
+     */
+    @Transactional
+    public ReservationResponseDTO updateReservation(Long id, UpdateReservationDTO request) {
+
+        Reservation reservation = reservationRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Reserva no encontrada"));
+
+        if (reservation.getStatus() != Status.PENDING) {
+            throw new BusinessRuleException("Solo se pueden modificar reservas en estado PENDIENTE");
+        }
+
         DayOfWeek day = request.getReservationDate().getDayOfWeek();
         if (day == DayOfWeek.SATURDAY || day == DayOfWeek.SUNDAY) {
             throw new BusinessRuleException("Solo se pueden hacer reservas de lunes a viernes");
         }
 
-        // 4. Verificar horario laboral
         LocalTime endTime = request.getStartTime()
                 .plusMinutes(reservation.getService().getDurationMinutes());
         if (request.getStartTime().isBefore(OPENING_TIME) || endTime.isAfter(CLOSING_TIME)) {
             throw new BusinessRuleException(
-                    "La reserva debe estar dentro del horario laboral (10:00 - 18:00)"
-            );
+                    "La reserva debe estar dentro del horario laboral (10:00 - 18:00)");
         }
 
-        // 5. Verificar solapamiento — ignorando la propia reserva
-        List<Reservation> existingReservations = reservationRepository
+        List<Reservation> existing = reservationRepository
                 .findByCarverAndReservationDateAndStatusIn(
-                        reservation.getCarver(),
-                        request.getReservationDate(),
-                        List.of(Status.PENDING, Status.CONFIRMED)
-                );
+                        reservation.getCarver(), request.getReservationDate(),
+                        List.of(Status.PENDING, Status.CONFIRMED));
 
-        for (Reservation existing : existingReservations) {
-            if (existing.getId().equals(id)) continue; // ignorar la propia reserva
-            boolean overlaps = request.getStartTime().isBefore(existing.getEndTime())
-                    && endTime.isAfter(existing.getStartTime());
-            if (overlaps) {
+        for (Reservation e : existing) {
+            if (e.getId().equals(id)) continue;
+            if (request.getStartTime().isBefore(e.getEndTime())
+                    && endTime.isAfter(e.getStartTime())) {
                 throw new TimeSlotNotAvailableException(
-                        "El cortador ya tiene una reserva en ese horario"
-                );
+                        "El cortador ya tiene una reserva en ese horario");
             }
         }
 
-        // 6. Aplicar cambios
         reservation.setReservationDate(request.getReservationDate());
         reservation.setStartTime(request.getStartTime());
         reservation.setNotes(request.getNotes());
@@ -199,23 +217,23 @@ public class ReservationService {
         return toDTO(updated);
     }
 
-    // ─────────────────────────────────────────
-    // CANCELAR RESERVA
-    // ─────────────────────────────────────────
+    /**
+     * Cancela una reserva existente si es posible según su estado actual.
+     *
+     * @param id Identificador de la reserva a cancelar.
+     * @throws ResourceNotFoundException Si la reserva no existe.
+     * @throws BusinessRuleException Si la reserva ya está cancelada o completada.
+     */
     @Transactional
     public void cancelReservation(Long id) {
-
         Reservation reservation = reservationRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Reserva no encontrada"));
 
         if (reservation.getStatus() == Status.CANCELLED) {
             throw new BusinessRuleException("La reserva ya está cancelada");
         }
-
-        if (reservation.getStatus() == Status.CONFIRMED) {
-            throw new BusinessRuleException(
-                    "No se puede cancelar una reserva ya confirmada. Contacta con el administrador"
-            );
+        if (reservation.getStatus() == Status.COMPLETED) {
+            throw new BusinessRuleException("No se puede cancelar una reserva ya completada");
         }
 
         reservation.setStatus(Status.CANCELLED);
@@ -223,24 +241,42 @@ public class ReservationService {
         notificationService.sendReservationNotification(cancelled, NotificationType.CANCELLED);
     }
 
-    // ─────────────────────────────────────────
-    // LISTAR RESERVAS POR CLIENTE
-    // ─────────────────────────────────────────
+    /**
+     * Obtiene una lista de todas las reservas registradas en el sistema.
+     *
+     * @return Lista de DTOs representando todas las reservas.
+     */
+    @Transactional(readOnly = true)
+    public List<ReservationResponseDTO> listAllReservations() {
+        return reservationRepository.findAll()
+                .stream()
+                .map(this::toDTO)
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * Obtiene una lista de todas las reservas asociadas a un cliente específico.
+     *
+     * @param clientId Identificador del cliente.
+     * @return Lista de DTOs con las reservas del cliente.
+     * @throws ResourceNotFoundException Si el cliente no existe.
+     */
     @Transactional(readOnly = true)
     public List<ReservationResponseDTO> listReservationsByClient(Long clientId) {
-
         User client = userRepository.findById(clientId)
                 .orElseThrow(() -> new ResourceNotFoundException("Cliente no encontrado"));
-
         return reservationRepository.findByClient(client)
                 .stream()
                 .map(this::toDTO)
                 .collect(Collectors.toList());
     }
 
-    // ─────────────────────────────────────────
-    // MÉTODO PRIVADO — Convertir entidad a DTO
-    // ─────────────────────────────────────────
+    /**
+     * Convierte una entidad de Reserva en su correspondiente DTO de respuesta.
+     *
+     * @param r Entidad de reserva a convertir.
+     * @return Objeto ReservationResponseDTO con los datos extraídos.
+     */
     private ReservationResponseDTO toDTO(Reservation r) {
         return new ReservationResponseDTO(
                 r.getId(),
