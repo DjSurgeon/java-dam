@@ -3,16 +3,13 @@ package com.hambooking.frontend.controllers;
 import com.hambooking.frontend.SessionManager;
 import com.hambooking.frontend.dto.AppDTO;
 import com.hambooking.frontend.service.ApiClient;
+import com.hambooking.frontend.util.ViewManager;
 import javafx.application.Platform;
 import javafx.beans.property.SimpleStringProperty;
 import javafx.fxml.FXML;
-import javafx.fxml.FXMLLoader;
 import javafx.fxml.Initializable;
-import javafx.scene.Parent;
 import javafx.scene.control.*;
 import javafx.scene.text.Text;
-import javafx.scene.layout.VBox;
-import javafx.stage.Stage;
 
 import java.io.IOException;
 import java.net.URL;
@@ -122,11 +119,7 @@ public class NotificationsController implements Initializable {
 
     private void navigateTo(String fxmlPath, String title) {
         try {
-            FXMLLoader loader = new FXMLLoader(getClass().getResource(fxmlPath));
-            Parent root = loader.load();
-            Stage stage = (Stage) notifTable.getScene().getWindow();
-            stage.getScene().setRoot(root);
-            stage.setTitle(title);
+            ViewManager.getInstance().navigateTo(fxmlPath, title);
         } catch (IOException e) {
             e.printStackTrace();
         }

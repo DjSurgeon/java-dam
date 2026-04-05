@@ -3,54 +3,74 @@ package com.hambooking.frontend.controllers;
 import com.hambooking.frontend.SessionManager;
 import com.hambooking.frontend.dto.AppDTO;
 import com.hambooking.frontend.service.ApiClient;
+import com.hambooking.frontend.util.AlertHelper;
+import com.hambooking.frontend.util.ViewManager;
 import javafx.application.Platform;
 import javafx.beans.property.SimpleStringProperty;
+import javafx.concurrent.Task;
 import javafx.fxml.FXML;
-import javafx.fxml.FXMLLoader;
 import javafx.fxml.Initializable;
 import javafx.geometry.Insets;
-import javafx.scene.Parent;
 import javafx.scene.control.*;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
-import javafx.stage.Stage;
 import javafx.util.Callback;
 
 import java.io.IOException;
 import java.net.URL;
+import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 import java.util.Optional;
 import java.util.ResourceBundle;
 
+/**
+ * Controlador principal para el panel de administración.
+ * Centraliza la gestión global del sistema: cortadores, usuarios, reservas y notificaciones.
+ * Utiliza un diseño de pestañas (TabPane) para organizar los diferentes dominios de la aplicación.
+ */
 public class AdminDashboardController implements Initializable {
 
     // ── Sidebar ──────────────────────────────────────────────────────────
+    /** Etiqueta que muestra el nombre del administrador actual. */
     @FXML private Label sidebarUserName;
 
-    // ── Cabecera ─────────────────────────────────────────────────────────
-    @FXML private Label     pageTitle;
-    @FXML private Label     pageBreadcrumb;
+    // ── Cabecera y Controles Globales ────────────────────────────────────
+    /** Título dinámico de la página según la pestaña activa. */
+    @FXML private Label pageTitle;
+    /** Indicador de ruta (breadcrumb) de la sección actual. */
+    @FXML private Label pageBreadcrumb;
+    /** Campo de búsqueda global (pendiente de implementación de filtrado). */
     @FXML private TextField searchField;
+    /** Botón para crear nuevos registros, cuyo comportamiento varía según la pestaña. */
+    @FXML private Button btnNuevo;
 
-    // ── KPIs ─────────────────────────────────────────────────────────────
+    // ── KPIs (Indicadores Clave) ─────────────────────────────────────────
+    /** Muestra el número total de cortadores activos. */
     @FXML private Label kpiCortadores;
+    /** Muestra el número de reservas programadas para el día de hoy. */
     @FXML private Label kpiReservasHoy;
+    /** Muestra el número total de clientes registrados. */
     @FXML private Label kpiClientes;
+    /** Muestra el número de reservas pendientes de confirmación. */
     @FXML private Label kpiPendientes;
 
-    // ── TabPane ──────────────────────────────────────────────────────────
+    // ── TabPane y Secciones ──────────────────────────────────────────────
+    /** Contenedor principal de las pestañas de administración. */
     @FXML private TabPane mainTabPane;
-    @FXML private Tab     tabCortadores;
-    @FXML private Tab     tabUsuarios;
-    @FXML private Tab     tabReservas;
-    @FXML private Tab     tabNotificaciones;
-    @FXML private Tab     tabEstadisticas;
+    /** Pestaña de gestión de perfiles de cortadores. */
+    @FXML private Tab tabCortadores;
+    /** Pestaña de gestión de cuentas de usuario. */
+    @FXML private Tab tabUsuarios;
+    /** Pestaña de supervisión de todas las reservas del sistema. */
+    @FXML private Tab tabReservas;
+    /** Pestaña de registro histórico de notificaciones enviadas. */
+    @FXML private Tab tabNotificaciones;
+    /** Pestaña de visualización de estadísticas globales. */
+    @FXML private Tab tabEstadisticas;
 
-    // ── Tabla cortadores ─────────────────────────────────────────────────
+    // ── Tabla de Cortadores ──────────────────────────────────────────────
     @FXML private TableView<AppDTO.CarverResponse>           cortadoresTable;
     @FXML private TableColumn<AppDTO.CarverResponse, String> cColNombre;
     @FXML private TableColumn<AppDTO.CarverResponse, String> cColDni;
@@ -60,7 +80,7 @@ public class AdminDashboardController implements Initializable {
     @FXML private TableColumn<AppDTO.CarverResponse, String> cColEstado;
     @FXML private TableColumn<AppDTO.CarverResponse, String> cColAcciones;
 
-    // ── Tabla usuarios ───────────────────────────────────────────────────
+    // ── Tabla de Usuarios ────────────────────────────────────────────────
     @FXML private TableView<AppDTO.UserResponse>           usuariosTable;
     @FXML private TableColumn<AppDTO.UserResponse, String> uColNombre;
     @FXML private TableColumn<AppDTO.UserResponse, String> uColDni;
@@ -69,7 +89,7 @@ public class AdminDashboardController implements Initializable {
     @FXML private TableColumn<AppDTO.UserResponse, String> uColEstado;
     @FXML private TableColumn<AppDTO.UserResponse, String> uColAcciones;
 
-    // ── Tabla reservas ───────────────────────────────────────────────────
+    // ── Tabla de Reservas ────────────────────────────────────────────────
     @FXML private TableView<AppDTO.ReservationResponse>           reservasTable;
     @FXML private TableColumn<AppDTO.ReservationResponse, String> rColFecha;
     @FXML private TableColumn<AppDTO.ReservationResponse, String> rColCliente;
@@ -79,210 +99,144 @@ public class AdminDashboardController implements Initializable {
     @FXML private TableColumn<AppDTO.ReservationResponse, String> rColEstado;
     @FXML private TableColumn<AppDTO.ReservationResponse, String> rColAcciones;
 
-    // ── Tabla notificaciones ─────────────────────────────────────────────
+    // ── Tabla de Notificaciones ──────────────────────────────────────────
     @FXML private TableView<AppDTO.NotificationResponse>           notificacionesTable;
     @FXML private TableColumn<AppDTO.NotificationResponse, String> nColFecha;
     @FXML private TableColumn<AppDTO.NotificationResponse, String> nColDestinatario;
     @FXML private TableColumn<AppDTO.NotificationResponse, String> nColTipo;
     @FXML private TableColumn<AppDTO.NotificationResponse, String> nColAsunto;
 
+    /** Formateador para fechas y horas en las tablas. */
     private static final DateTimeFormatter FMT_DATETIME =
             DateTimeFormatter.ofPattern("dd MMM yyyy HH:mm", new Locale("es", "ES"));
+    /** Formateador para fechas simples en las tablas. */
     private static final DateTimeFormatter FMT_FECHA =
             DateTimeFormatter.ofPattern("dd MMM yyyy", new Locale("es", "ES"));
 
-    // ── Inicializacion ───────────────────────────────────────────────────
+    /**
+     * Inicializa el controlador configurando el nombre del usuario, las columnas de las tablas
+     * y disparando la carga masiva de datos desde la API.
+     */
     @Override
     public void initialize(URL location, ResourceBundle resources) {
         sidebarUserName.setText(SessionManager.getInstance().getFullName());
+        
         configurarTablaCortadores();
         configurarTablaUsuarios();
         configurarTablaReservas();
         configurarTablaNotificaciones();
+        
         cargarDatos();
     }
 
-    // ── Configuracion de columnas ────────────────────────────────────────
+    // ── Región: Configuración de Columnas ────────────────────────────────
 
     private void configurarTablaCortadores() {
-        cColNombre.setCellValueFactory(d -> new SimpleStringProperty(
-                d.getValue().firstName + " " + d.getValue().lastName));
-        cColDni.setCellValueFactory(d -> new SimpleStringProperty(
-                d.getValue().dni != null ? d.getValue().dni : ""));
-        cColEmail.setCellValueFactory(d -> new SimpleStringProperty(
-                d.getValue().email != null ? d.getValue().email : ""));
-        cColEspecialidad.setCellValueFactory(d -> new SimpleStringProperty(
-                d.getValue().specialty != null ? d.getValue().specialty : "-"));
+        cColNombre.setCellValueFactory(d -> new SimpleStringProperty(d.getValue().firstName + " " + d.getValue().lastName));
+        cColDni.setCellValueFactory(d -> new SimpleStringProperty(d.getValue().dni != null ? d.getValue().dni : ""));
+        cColEmail.setCellValueFactory(d -> new SimpleStringProperty(d.getValue().email != null ? d.getValue().email : ""));
+        cColEspecialidad.setCellValueFactory(d -> new SimpleStringProperty(d.getValue().specialty != null ? d.getValue().specialty : "-"));
         cColExperiencia.setCellValueFactory(d -> new SimpleStringProperty(
-                d.getValue().experienceYears != null
-                        ? d.getValue().experienceYears + " a\u00f1os" : "0 a\u00f1os"));
-        cColEstado.setCellValueFactory(d -> new SimpleStringProperty(
-                Boolean.TRUE.equals(d.getValue().isActive) ? "Activo" : "Inactivo"));
+                d.getValue().experienceYears != null ? d.getValue().experienceYears + " años" : "0 años"));
+        cColEstado.setCellValueFactory(d -> new SimpleStringProperty(Boolean.TRUE.equals(d.getValue().isActive) ? "Activo" : "Inactivo"));
         cColAcciones.setCellFactory(accionesCortadoresFactory());
     }
 
     private void configurarTablaUsuarios() {
-        uColNombre.setCellValueFactory(d -> new SimpleStringProperty(
-                d.getValue().firstName + " " + d.getValue().lastName));
-        uColDni.setCellValueFactory(d -> new SimpleStringProperty(
-                d.getValue().dni != null ? d.getValue().dni : ""));
-        uColEmail.setCellValueFactory(d -> new SimpleStringProperty(
-                d.getValue().email != null ? d.getValue().email : ""));
-        uColTelefono.setCellValueFactory(d -> new SimpleStringProperty(
-                d.getValue().phone != null ? d.getValue().phone : ""));
-        uColEstado.setCellValueFactory(d -> new SimpleStringProperty(
-                Boolean.TRUE.equals(d.getValue().isActive) ? "Activo" : "Inactivo"));
+        uColNombre.setCellValueFactory(d -> new SimpleStringProperty(d.getValue().firstName + " " + d.getValue().lastName));
+        uColDni.setCellValueFactory(d -> new SimpleStringProperty(d.getValue().dni != null ? d.getValue().dni : ""));
+        uColEmail.setCellValueFactory(d -> new SimpleStringProperty(d.getValue().email != null ? d.getValue().email : ""));
+        uColTelefono.setCellValueFactory(d -> new SimpleStringProperty(d.getValue().phone != null ? d.getValue().phone : ""));
+        uColEstado.setCellValueFactory(d -> new SimpleStringProperty(Boolean.TRUE.equals(d.getValue().isActive) ? "Activo" : "Inactivo"));
         uColAcciones.setCellFactory(accionesUsuariosFactory());
     }
 
     private void configurarTablaReservas() {
         rColFecha.setCellValueFactory(d -> new SimpleStringProperty(
-                d.getValue().reservationDate != null
-                        ? d.getValue().reservationDate.format(FMT_FECHA) : ""));
-        rColCliente.setCellValueFactory(d -> new SimpleStringProperty(
-                d.getValue().getClientFullName()));
-        rColCortador.setCellValueFactory(d -> new SimpleStringProperty(
-                d.getValue().getCarverFullName()));
-        rColServicio.setCellValueFactory(d -> new SimpleStringProperty(
-                d.getValue().serviceName != null ? d.getValue().serviceName : ""));
-        rColHora.setCellValueFactory(d -> new SimpleStringProperty(
-                d.getValue().getHoraStr()));
-        rColEstado.setCellValueFactory(d -> new SimpleStringProperty(
-                traducirEstado(d.getValue().status)));
+                d.getValue().reservationDate != null ? d.getValue().reservationDate.format(FMT_FECHA) : ""));
+        rColCliente.setCellValueFactory(d -> new SimpleStringProperty(d.getValue().getClientFullName()));
+        rColCortador.setCellValueFactory(d -> new SimpleStringProperty(d.getValue().getCarverFullName()));
+        rColServicio.setCellValueFactory(d -> new SimpleStringProperty(d.getValue().serviceName != null ? d.getValue().serviceName : ""));
+        rColHora.setCellValueFactory(d -> new SimpleStringProperty(d.getValue().getHoraStr()));
+        rColEstado.setCellValueFactory(d -> new SimpleStringProperty(traducirEstado(d.getValue().status)));
         rColAcciones.setCellFactory(accionesReservasFactory());
     }
 
     private void configurarTablaNotificaciones() {
         nColFecha.setCellValueFactory(d -> new SimpleStringProperty(
                 d.getValue().sentAt != null ? d.getValue().sentAt.format(FMT_DATETIME) : ""));
-        nColDestinatario.setCellValueFactory(d -> new SimpleStringProperty(
-                d.getValue().recipientEmail != null ? d.getValue().recipientEmail : ""));
-        nColTipo.setCellValueFactory(d -> new SimpleStringProperty(
-                traducirTipoNotif(d.getValue().notificationType)));
-        nColAsunto.setCellValueFactory(d -> new SimpleStringProperty(
-                d.getValue().subject != null ? d.getValue().subject : ""));
+        nColDestinatario.setCellValueFactory(d -> new SimpleStringProperty(d.getValue().recipientEmail != null ? d.getValue().recipientEmail : ""));
+        nColTipo.setCellValueFactory(d -> new SimpleStringProperty(traducirTipoNotif(d.getValue().notificationType)));
+        nColAsunto.setCellValueFactory(d -> new SimpleStringProperty(d.getValue().subject != null ? d.getValue().subject : ""));
     }
 
-    // ── Factories de botones ─────────────────────────────────────────────
+    // ── Región: Factorías de Celdas (Botones) ────────────────────────────
 
-    private Callback<TableColumn<AppDTO.CarverResponse, String>,
-            TableCell<AppDTO.CarverResponse, String>> accionesCortadoresFactory() {
-
-        return col -> new TableCell<>() {
+    private Callback<TableColumn<AppDTO.CarverResponse, String>, TableCell<AppDTO.CarverResponse, String>> accionesCortadoresFactory() {
+        return col -> new TableCell<AppDTO.CarverResponse, String>() {
             private final Button btnEditar = new Button("Editar");
             private final Button btnToggle = new Button();
-            private final HBox   box       = new HBox(6, btnEditar, btnToggle);
-
+            private final HBox box = new HBox(6, btnEditar, btnToggle);
             {
                 box.setPadding(new Insets(2, 0, 2, 0));
                 btnEditar.setStyle("-fx-font-size:11px; -fx-padding:3 8 3 8;");
-
-                btnEditar.setOnAction(e -> {
-                    AppDTO.CarverResponse c = getTableView().getItems().get(getIndex());
-                    mostrarDialogoEditarCortador(c);
-                });
+                btnEditar.setOnAction(e -> ejecutarEdicionCortador(getTableView().getItems().get(getIndex())));
                 btnToggle.setOnAction(e -> {
                     AppDTO.CarverResponse c = getTableView().getItems().get(getIndex());
-                    if (Boolean.TRUE.equals(c.isActive)) confirmarYDesactivarCortador(c);
-                    else activarCortador(c);
+                    if (Boolean.TRUE.equals(c.isActive)) ejecutarDesactivacionCortador(c);
+                    else ejecutarActivacionCortador(c);
                 });
             }
-
-            @Override
-            protected void updateItem(String item, boolean empty) {
+            @Override protected void updateItem(String item, boolean empty) {
                 super.updateItem(item, empty);
-                if (empty || getIndex() < 0 || getIndex() >= getTableView().getItems().size()) {
-                    setGraphic(null);
-                    return;
-                }
+                if (empty || getIndex() < 0) { setGraphic(null); return; }
                 AppDTO.CarverResponse c = getTableView().getItems().get(getIndex());
                 boolean activo = Boolean.TRUE.equals(c.isActive);
                 btnToggle.setText(activo ? "Desactivar" : "Activar");
-                btnToggle.setStyle(activo
-                        ? "-fx-font-size:11px; -fx-padding:3 8 3 8; -fx-background-color:#e74c3c; -fx-text-fill:white;"
-                        : "-fx-font-size:11px; -fx-padding:3 8 3 8; -fx-background-color:#27ae60; -fx-text-fill:white;");
+                btnToggle.setStyle(activo ? "-fx-background-color:#e74c3c; -fx-text-fill:white; -fx-font-size:11px;" : "-fx-background-color:#27ae60; -fx-text-fill:white; -fx-font-size:11px;");
                 setGraphic(box);
             }
         };
     }
 
-    private Callback<TableColumn<AppDTO.UserResponse, String>,
-            TableCell<AppDTO.UserResponse, String>> accionesUsuariosFactory() {
-
-        return col -> new TableCell<>() {
+    private Callback<TableColumn<AppDTO.UserResponse, String>, TableCell<AppDTO.UserResponse, String>> accionesUsuariosFactory() {
+        return col -> new TableCell<AppDTO.UserResponse, String>() {
             private final Button btnToggle = new Button();
-            private final HBox   box       = new HBox(6, btnToggle);
-
+            private final HBox box = new HBox(6, btnToggle);
             {
                 box.setPadding(new Insets(2, 0, 2, 0));
-                btnToggle.setOnAction(e -> {
-                    AppDTO.UserResponse u = getTableView().getItems().get(getIndex());
-                    toggleUsuario(u);
-                });
+                btnToggle.setOnAction(e -> ejecutarToggleUsuario(getTableView().getItems().get(getIndex())));
             }
-
-            @Override
-            protected void updateItem(String item, boolean empty) {
+            @Override protected void updateItem(String item, boolean empty) {
                 super.updateItem(item, empty);
-                if (empty || getIndex() < 0 || getIndex() >= getTableView().getItems().size()) {
-                    setGraphic(null);
-                    return;
-                }
-                AppDTO.UserResponse u = getTableView().getItems().get(getIndex());
-                boolean activo = Boolean.TRUE.equals(u.isActive);
+                if (empty || getIndex() < 0) { setGraphic(null); return; }
+                boolean activo = Boolean.TRUE.equals(getTableView().getItems().get(getIndex()).isActive);
                 btnToggle.setText(activo ? "Desactivar" : "Activar");
-                btnToggle.setStyle(activo
-                        ? "-fx-font-size:11px; -fx-padding:3 8 3 8; -fx-background-color:#e74c3c; -fx-text-fill:white;"
-                        : "-fx-font-size:11px; -fx-padding:3 8 3 8; -fx-background-color:#27ae60; -fx-text-fill:white;");
+                btnToggle.setStyle(activo ? "-fx-background-color:#e74c3c; -fx-text-fill:white; -fx-font-size:11px;" : "-fx-background-color:#27ae60; -fx-text-fill:white; -fx-font-size:11px;");
                 setGraphic(box);
             }
         };
     }
 
-    private Callback<TableColumn<AppDTO.ReservationResponse, String>,
-            TableCell<AppDTO.ReservationResponse, String>> accionesReservasFactory() {
-
-        return col -> new TableCell<>() {
+    private Callback<TableColumn<AppDTO.ReservationResponse, String>, TableCell<AppDTO.ReservationResponse, String>> accionesReservasFactory() {
+        return col -> new TableCell<AppDTO.ReservationResponse, String>() {
             private final Button btnConfirmar = new Button("Confirmar");
             private final Button btnCancelar  = new Button("Cancelar");
-            private final HBox   box          = new HBox(6, btnConfirmar, btnCancelar);
-
+            private final HBox box = new HBox(6, btnConfirmar, btnCancelar);
             {
                 box.setPadding(new Insets(2, 0, 2, 0));
-                btnConfirmar.setStyle(
-                        "-fx-font-size:11px; -fx-padding:3 8 3 8; -fx-background-color:#27ae60; -fx-text-fill:white;");
-                btnCancelar.setStyle(
-                        "-fx-font-size:11px; -fx-padding:3 8 3 8; -fx-background-color:#e74c3c; -fx-text-fill:white;");
-
-                btnConfirmar.setOnAction(e -> {
-                    AppDTO.ReservationResponse r = getTableView().getItems().get(getIndex());
-                    confirmarReserva(r);
-                });
-                btnCancelar.setOnAction(e -> {
-                    AppDTO.ReservationResponse r = getTableView().getItems().get(getIndex());
-                    cancelarReserva(r);
-                });
+                btnConfirmar.setStyle("-fx-background-color:#27ae60; -fx-text-fill:white; -fx-font-size:11px;");
+                btnCancelar.setStyle("-fx-background-color:#e74c3c; -fx-text-fill:white; -fx-font-size:11px;");
+                btnConfirmar.setOnAction(e -> ejecutarConfirmacionReserva(getTableView().getItems().get(getIndex())));
+                btnCancelar.setOnAction(e -> ejecutarCancelacionReserva(getTableView().getItems().get(getIndex())));
             }
-
-            @Override
-            protected void updateItem(String item, boolean empty) {
+            @Override protected void updateItem(String item, boolean empty) {
                 super.updateItem(item, empty);
-                if (empty || getIndex() < 0 || getIndex() >= getTableView().getItems().size()) {
-                    setGraphic(null);
-                    return;
-                }
+                if (empty || getIndex() < 0) { setGraphic(null); return; }
                 AppDTO.ReservationResponse r = getTableView().getItems().get(getIndex());
-                // No mostrar botones si la fecha ya pasó
-                boolean fechaPasada = r.reservationDate != null
-                        && r.reservationDate.isBefore(java.time.LocalDate.now());
-                if (fechaPasada) {
-                    setGraphic(null);
-                    return;
-                }
-                // Confirmar solo visible si PENDING
+                if (r.reservationDate != null && r.reservationDate.isBefore(LocalDate.now())) { setGraphic(null); return; }
                 btnConfirmar.setVisible("PENDING".equals(r.status));
                 btnConfirmar.setManaged("PENDING".equals(r.status));
-                // Cancelar visible si PENDING o CONFIRMED
                 boolean cancelable = "PENDING".equals(r.status) || "CONFIRMED".equals(r.status);
                 btnCancelar.setVisible(cancelable);
                 btnCancelar.setManaged(cancelable);
@@ -291,419 +245,244 @@ public class AdminDashboardController implements Initializable {
         };
     }
 
-    // ── Logica de acciones ───────────────────────────────────────────────
+    // ── Región: Lógica de Acciones (Cortadores) ──────────────────────────
 
-    private void mostrarDialogoEditarCortador(AppDTO.CarverResponse carver) {
+    /**
+     * Muestra el diálogo de edición para un perfil de cortador y guarda los cambios.
+     */
+    private void ejecutarEdicionCortador(AppDTO.CarverResponse carver) {
         Dialog<ButtonType> dialog = new Dialog<>();
         dialog.setTitle("Editar cortador");
         dialog.setHeaderText(carver.firstName + " " + carver.lastName);
 
         TextField tfEspecialidad = new TextField(carver.specialty != null ? carver.specialty : "");
-        TextField tfExperiencia  = new TextField(
-                carver.experienceYears != null ? String.valueOf(carver.experienceYears) : "0");
-        TextField tfMaxJamones   = new TextField(
-                carver.maxHamsPerDay != null ? String.valueOf(carver.maxHamsPerDay) : "3");
+        TextField tfExperiencia  = new TextField(String.valueOf(carver.experienceYears != null ? carver.experienceYears : 0));
+        TextField tfMaxJamones   = new TextField(String.valueOf(carver.maxHamsPerDay != null ? carver.maxHamsPerDay : 3));
 
-        tfEspecialidad.setPromptText("Especialidad");
-        tfExperiencia.setPromptText("A\u00f1os de experiencia");
-        tfMaxJamones.setPromptText("M\u00e1x. jamones/d\u00eda");
-
-        VBox content = new VBox(8,
-                new Label("Especialidad:"), tfEspecialidad,
-                new Label("A\u00f1os de experiencia:"), tfExperiencia,
-                new Label("M\u00e1x. jamones por d\u00eda:"), tfMaxJamones);
+        VBox content = new VBox(8, new Label("Especialidad:"), tfEspecialidad, 
+                                   new Label("Años de experiencia:"), tfExperiencia, 
+                                   new Label("Máx. jamones por día:"), tfMaxJamones);
         content.setPadding(new Insets(16));
         dialog.getDialogPane().setContent(content);
         dialog.getDialogPane().getButtonTypes().addAll(ButtonType.OK, ButtonType.CANCEL);
 
-        Optional<ButtonType> result = dialog.showAndWait();
-        if (result.isPresent() && result.get() == ButtonType.OK) {
-            try {
-                int exp = Integer.parseInt(tfExperiencia.getText().trim());
-                int max = Integer.parseInt(tfMaxJamones.getText().trim());
-                String body = String.format(
-                        "{\"specialty\":\"%s\",\"experienceYears\":%d,\"maxHamsPerDay\":%d}",
-                        tfEspecialidad.getText().trim(), exp, max);
-
-                Thread t = new Thread(() -> {
-                    try {
-                        ApiClient.getInstance().put("/carvers/" + carver.id, body);
-                        Platform.runLater(() -> {
-                            mostrarAlerta(Alert.AlertType.INFORMATION,
-                                    "\u00c9xito", "Cortador actualizado correctamente.");
-                            cargarDatos();
-                        });
-                    } catch (ApiClient.ApiException ex) {
-                        Platform.runLater(() ->
-                                mostrarAlerta(Alert.AlertType.ERROR,
-                                        "Error", "No se pudo actualizar: " + ex.getMessage()));
-                    }
-                });
-                t.setDaemon(true);
-                t.start();
-
-            } catch (NumberFormatException ex) {
-                mostrarAlerta(Alert.AlertType.WARNING, "Datos inv\u00e1lidos",
-                        "Introduce n\u00fameros v\u00e1lidos en los campos num\u00e9ricos.");
-            }
-        }
-    }
-
-    private void confirmarYDesactivarCortador(AppDTO.CarverResponse carver) {
-        Alert confirm = new Alert(Alert.AlertType.CONFIRMATION);
-        confirm.setTitle("Desactivar cortador");
-        confirm.setHeaderText("\u00bfDesactivar a " + carver.firstName + " " + carver.lastName + "?");
-        confirm.setContentText("El cortador no aparecer\u00e1 disponible para nuevas reservas.");
-        confirm.showAndWait().ifPresent(btn -> {
+        dialog.showAndWait().ifPresent(btn -> {
             if (btn == ButtonType.OK) {
-                Thread t = new Thread(() -> {
-                    try {
-                        ApiClient.getInstance().patch("/carvers/" + carver.id + "/deactivate");
-                        Platform.runLater(() -> {
-                            mostrarAlerta(Alert.AlertType.INFORMATION,
-                                    "\u00c9xito", "Cortador desactivado.");
-                            cargarDatos();
-                        });
-                    } catch (ApiClient.ApiException ex) {
-                        Platform.runLater(() ->
-                                mostrarAlerta(Alert.AlertType.ERROR, "Error", ex.getMessage()));
-                    }
-                });
-                t.setDaemon(true);
-                t.start();
+                try {
+                    int exp = Integer.parseInt(tfExperiencia.getText().trim());
+                    int max = Integer.parseInt(tfMaxJamones.getText().trim());
+                    
+                    String body = String.format("{\"specialty\":\"%s\",\"experienceYears\":%d,\"maxHamsPerDay\":%d}",
+                            tfEspecialidad.getText().trim(), exp, max);
+
+                    Task<Void> task = new Task<>() {
+                        @Override protected Void call() throws Exception {
+                            ApiClient.getInstance().put("/carvers/" + carver.id, body);
+                            return null;
+                        }
+                    };
+                    task.setOnSucceeded(e -> { AlertHelper.showInfo("Éxito", "Cortador actualizado."); cargarDatos(); });
+                    task.setOnFailed(e -> AlertHelper.showError("Error", task.getException().getMessage()));
+                    new Thread(task).start();
+
+                } catch (NumberFormatException ex) {
+                    AlertHelper.showWarning("Datos inválidos", "Introduce números válidos en los campos numéricos.");
+                }
             }
         });
     }
 
-    private void activarCortador(AppDTO.CarverResponse carver) {
-        Thread t = new Thread(() -> {
-            try {
-                ApiClient.getInstance().patch("/carvers/" + carver.id + "/activate");
-                Platform.runLater(() -> {
-                    mostrarAlerta(Alert.AlertType.INFORMATION, "\u00c9xito", "Cortador activado.");
-                    cargarDatos();
-                });
-            } catch (ApiClient.ApiException ex) {
-                Platform.runLater(() ->
-                        mostrarAlerta(Alert.AlertType.ERROR, "Error", ex.getMessage()));
+    private void ejecutarDesactivacionCortador(AppDTO.CarverResponse carver) {
+        AlertHelper.showConfirmation("Desactivar cortador", "¿Desactivar a " + carver.firstName + " " + carver.lastName + "?",
+                "El cortador no aparecerá disponible para nuevas reservas.")
+        .ifPresent(btn -> {
+            if (btn == ButtonType.OK) {
+                lanzarTareaPatch("/carvers/" + carver.id + "/deactivate", "Cortador desactivado.");
             }
         });
-        t.setDaemon(true);
-        t.start();
     }
 
-    private void toggleUsuario(AppDTO.UserResponse user) {
+    private void ejecutarActivacionCortador(AppDTO.CarverResponse carver) {
+        lanzarTareaPatch("/carvers/" + carver.id + "/activate", "Cortador activado.");
+    }
+
+    // ── Región: Lógica de Acciones (Usuarios y Reservas) ─────────────────
+
+    private void ejecutarToggleUsuario(AppDTO.UserResponse user) {
         boolean activar = !Boolean.TRUE.equals(user.isActive);
-        String accion   = activar ? "activar" : "desactivar";
-
-        Alert confirm = new Alert(Alert.AlertType.CONFIRMATION);
-        confirm.setTitle((activar ? "Activar" : "Desactivar") + " usuario");
-        confirm.setHeaderText("\u00bfDeseas " + accion + " a "
-                + user.firstName + " " + user.lastName + "?");
-        confirm.showAndWait().ifPresent(btn -> {
+        AlertHelper.showConfirmation((activar ? "Activar" : "Desactivar") + " usuario",
+                "¿Deseas " + (activar ? "activar" : "desactivar") + " a " + user.firstName + " " + user.lastName + "?", null)
+        .ifPresent(btn -> {
             if (btn == ButtonType.OK) {
-                String endpoint = activar
-                        ? "/users/" + user.id + "/activate"
-                        : "/users/" + user.id + "/deactivate";
-                Thread t = new Thread(() -> {
-                    try {
-                        ApiClient.getInstance().patch(endpoint);
-                        Platform.runLater(() -> {
-                            mostrarAlerta(Alert.AlertType.INFORMATION, "\u00c9xito",
-                                    "Usuario " + (activar ? "activado" : "desactivado") + ".");
-                            cargarDatos();
-                        });
-                    } catch (ApiClient.ApiException ex) {
-                        Platform.runLater(() ->
-                                mostrarAlerta(Alert.AlertType.ERROR, "Error", ex.getMessage()));
-                    }
-                });
-                t.setDaemon(true);
-                t.start();
+                String endpoint = "/users/" + user.id + (activar ? "/activate" : "/deactivate");
+                lanzarTareaPatch(endpoint, "Usuario " + (activar ? "activado" : "desactivado") + ".");
             }
         });
     }
 
-    private void confirmarReserva(AppDTO.ReservationResponse reserva) {
-        Alert confirm = new Alert(Alert.AlertType.CONFIRMATION);
-        confirm.setTitle("Confirmar reserva");
-        confirm.setHeaderText("\u00bfConfirmar la reserva de " + reserva.getClientFullName() + "?");
-        confirm.setContentText("Servicio: " + reserva.serviceName
-                + "\nFecha: " + (reserva.reservationDate != null
-                ? reserva.reservationDate.format(FMT_FECHA) : "")
-                + "\nHora: " + reserva.getHoraStr());
-        confirm.showAndWait().ifPresent(btn -> {
+    private void ejecutarConfirmacionReserva(AppDTO.ReservationResponse reserva) {
+        AlertHelper.showConfirmation("Confirmar reserva", "¿Confirmar la reserva de " + reserva.getClientFullName() + "?",
+                "Servicio: " + reserva.serviceName + "\nFecha: " + formatFecha(reserva.reservationDate))
+        .ifPresent(btn -> {
             if (btn == ButtonType.OK) {
-                Thread t = new Thread(() -> {
-                    try {
-                        ApiClient.getInstance().patch("/reservations/" + reserva.id + "/confirm");
-                        Platform.runLater(() -> {
-                            mostrarAlerta(Alert.AlertType.INFORMATION,
-                                    "\u00c9xito", "Reserva confirmada.");
-                            cargarDatos();
-                        });
-                    } catch (ApiClient.ApiException ex) {
-                        Platform.runLater(() ->
-                                mostrarAlerta(Alert.AlertType.ERROR, "Error", ex.getMessage()));
-                    }
-                });
-                t.setDaemon(true);
-                t.start();
+                lanzarTareaPatch("/reservations/" + reserva.id + "/confirm", "Reserva confirmada.");
             }
         });
     }
 
-    private void cancelarReserva(AppDTO.ReservationResponse reserva) {
-        Alert confirm = new Alert(Alert.AlertType.CONFIRMATION);
-        confirm.setTitle("Cancelar reserva");
-        confirm.setHeaderText("\u00bfCancelar la reserva de " + reserva.getClientFullName() + "?");
-        confirm.setContentText("Esta acci\u00f3n no se puede deshacer.");
-        confirm.showAndWait().ifPresent(btn -> {
+    private void ejecutarCancelacionReserva(AppDTO.ReservationResponse reserva) {
+        AlertHelper.showConfirmation("Cancelar reserva", "¿Cancelar la reserva de " + reserva.getClientFullName() + "?",
+                "Esta acción no se puede deshacer.")
+        .ifPresent(btn -> {
             if (btn == ButtonType.OK) {
-                Thread t = new Thread(() -> {
-                    try {
-                        ApiClient.getInstance().patch("/reservations/" + reserva.id + "/cancel");
-                        Platform.runLater(() -> {
-                            mostrarAlerta(Alert.AlertType.INFORMATION,
-                                    "\u00c9xito", "Reserva cancelada.");
-                            cargarDatos();
-                        });
-                    } catch (ApiClient.ApiException ex) {
-                        Platform.runLater(() ->
-                                mostrarAlerta(Alert.AlertType.ERROR, "Error", ex.getMessage()));
-                    }
-                });
-                t.setDaemon(true);
-                t.start();
+                lanzarTareaPatch("/reservations/" + reserva.id + "/cancel", "Reserva cancelada.");
             }
         });
     }
 
-    // ── Carga de datos ───────────────────────────────────────────────────
+    /**
+     * Utilidad genérica para lanzar tareas PATCH asíncronas.
+     */
+    private void lanzarTareaPatch(String endpoint, String successMsg) {
+        Task<Void> task = new Task<>() {
+            @Override protected Void call() throws Exception {
+                ApiClient.getInstance().patch(endpoint);
+                return null;
+            }
+        };
+        task.setOnSucceeded(e -> { AlertHelper.showInfo("Éxito", successMsg); cargarReservasIndependiente(); });
+        task.setOnFailed(e -> AlertHelper.showError("Error", task.getException().getMessage()));
+        new Thread(task).start();
+    }
 
+    // ── Región: Carga de Datos ───────────────────────────────────────────
+
+    /**
+     * Realiza una carga masiva de todos los dominios del administrador de forma asíncrona.
+     */
     private void cargarDatos() {
-        Thread thread = new Thread(() -> {
-            try {
-                List<AppDTO.CarverResponse> cortadores = ApiClient.getInstance()
-                        .getList("/carvers", AppDTO.CarverResponse.class);
-                List<AppDTO.UserResponse> usuarios = ApiClient.getInstance()
-                        .getList("/users", AppDTO.UserResponse.class);
-                List<AppDTO.ReservationResponse> reservas = ApiClient.getInstance()
-                        .getList("/reservations", AppDTO.ReservationResponse.class);
-                List<AppDTO.NotificationResponse> notificaciones = ApiClient.getInstance()
-                        .getList("/notifications", AppDTO.NotificationResponse.class);
-
-                Platform.runLater(() -> {
-                    cortadoresTable.getItems().setAll(cortadores);
-                    usuariosTable.getItems().setAll(
-                            usuarios.stream().filter(u -> !"ADMIN".equals(u.role)).toList());
-                    reservasTable.getItems().setAll(reservas);
-                    notificacionesTable.getItems().setAll(notificaciones);
-
-                    long activos    = cortadores.stream().filter(c -> Boolean.TRUE.equals(c.isActive)).count();
-                    long clientes   = usuarios.stream().filter(u -> "CLIENT".equals(u.role)).count();
-                    long hoy        = reservas.stream()
-                            .filter(r -> r.reservationDate != null
-                                    && r.reservationDate.equals(java.time.LocalDate.now()))
-                            .count();
-                    long pendientes = reservas.stream().filter(r -> "PENDING".equals(r.status)).count();
-
-                    kpiCortadores.setText(String.valueOf(activos));
-                    kpiClientes.setText(String.valueOf(clientes));
-                    kpiReservasHoy.setText(String.valueOf(hoy));
-                    kpiPendientes.setText(String.valueOf(pendientes));
-                });
-
-            } catch (ApiClient.ApiException e) {
-                Platform.runLater(() ->
-                        pageTitle.setText("Error al cargar: " + e.getMessage()));
+        Task<Object[]> loadTask = new Task<>() {
+            @Override protected Object[] call() throws Exception {
+                return new Object[] {
+                    ApiClient.getInstance().getList("/carvers", AppDTO.CarverResponse.class),
+                    ApiClient.getInstance().getList("/users", AppDTO.UserResponse.class),
+                    ApiClient.getInstance().getList("/reservations", AppDTO.ReservationResponse.class),
+                    ApiClient.getInstance().getList("/notifications", AppDTO.NotificationResponse.class)
+                };
             }
-        });
-        thread.setDaemon(true);
-        thread.start();
+        };
+
+        loadTask.setOnSucceeded(e -> procesarCargaMasiva(loadTask.getValue()));
+        loadTask.setOnFailed(e -> pageTitle.setText("Error al cargar: " + loadTask.getException().getMessage()));
+
+        new Thread(loadTask).start();
     }
 
-    // ── Navegacion ───────────────────────────────────────────────────────
-
-    @FXML private void showTabCortadores() {
-        mainTabPane.getSelectionModel().select(tabCortadores);
-        pageTitle.setText("Gesti\u00f3n de Cortadores");
-        pageBreadcrumb.setText("Inicio \u00b7 Cortadores");
+    /**
+     * Refresca solo los datos de reservas y KPIs (útil tras acciones puntuales).
+     */
+    private void cargarReservasIndependiente() {
+        cargarDatos(); // Por ahora reutilizamos la carga masiva para mantener consistencia.
     }
 
-    @FXML private void showTabUsuarios() {
-        mainTabPane.getSelectionModel().select(tabUsuarios);
-        pageTitle.setText("Gesti\u00f3n de Usuarios");
-        pageBreadcrumb.setText("Inicio \u00b7 Usuarios");
+    @SuppressWarnings("unchecked")
+    private void procesarCargaMasiva(Object[] datos) {
+        List<AppDTO.CarverResponse> cortadores = (List<AppDTO.CarverResponse>) datos[0];
+        List<AppDTO.UserResponse> usuarios = (List<AppDTO.UserResponse>) datos[1];
+        List<AppDTO.ReservationResponse> reservas = (List<AppDTO.ReservationResponse>) datos[2];
+        List<AppDTO.NotificationResponse> notificaciones = (List<AppDTO.NotificationResponse>) datos[3];
+
+        cortadoresTable.getItems().setAll(cortadores);
+        usuariosTable.getItems().setAll(usuarios.stream().filter(u -> !"ADMIN".equals(u.role)).toList());
+        reservasTable.getItems().setAll(reservas);
+        notificacionesTable.getItems().setAll(notificaciones);
+
+        actualizarKPIs(cortadores, usuarios, reservas);
     }
 
-    @FXML private void showTabReservas() {
-        mainTabPane.getSelectionModel().select(tabReservas);
-        pageTitle.setText("Todas las Reservas");
-        pageBreadcrumb.setText("Inicio \u00b7 Reservas");
+    private void actualizarKPIs(List<AppDTO.CarverResponse> c, List<AppDTO.UserResponse> u, List<AppDTO.ReservationResponse> r) {
+        long activos    = c.stream().filter(carver -> Boolean.TRUE.equals(carver.isActive)).count();
+        long clientes   = u.stream().filter(user -> "CLIENT".equals(user.role)).count();
+        long hoy        = r.stream().filter(res -> res.reservationDate != null && res.reservationDate.equals(LocalDate.now())).count();
+        long pendientes = r.stream().filter(res -> "PENDING".equals(res.status)).count();
+
+        kpiCortadores.setText(String.valueOf(activos));
+        kpiClientes.setText(String.valueOf(clientes));
+        kpiReservasHoy.setText(String.valueOf(hoy));
+        kpiPendientes.setText(String.valueOf(pendientes));
     }
 
-    @FXML private void showTabNotificaciones() {
-        mainTabPane.getSelectionModel().select(tabNotificaciones);
-        pageTitle.setText("Notificaciones");
-        pageBreadcrumb.setText("Inicio \u00b7 Notificaciones");
-    }
+    // ── Región: Navegación y Pestañas ────────────────────────────────────
 
-    @FXML private void showTabEstadisticas() {
-        mainTabPane.getSelectionModel().select(tabEstadisticas);
-        pageTitle.setText("Estad\u00edsticas");
-        pageBreadcrumb.setText("Inicio \u00b7 Estad\u00edsticas");
+    @FXML private void showTabCortadores() { selectTab(tabCortadores, "Gestión de Cortadores", "Inicio · Cortadores"); }
+    @FXML private void showTabUsuarios()   { selectTab(tabUsuarios, "Gestión de Usuarios", "Inicio · Usuarios"); }
+    @FXML private void showTabReservas()   { selectTab(tabReservas, "Todas las Reservas", "Inicio · Reservas"); }
+    @FXML private void showTabNotificaciones() { selectTab(tabNotificaciones, "Notificaciones", "Inicio · Notificaciones"); }
+    @FXML private void showTabEstadisticas()   { selectTab(tabEstadisticas, "Estadísticas", "Inicio · Estadísticas"); }
+
+    private void selectTab(Tab tab, String title, String breadcrumb) {
+        mainTabPane.getSelectionModel().select(tab);
+        pageTitle.setText(title);
+        pageBreadcrumb.setText(breadcrumb);
     }
 
     @FXML private void handleNuevo() {
-        Tab tabActivo = mainTabPane.getSelectionModel().getSelectedItem();
-        if (tabActivo == tabCortadores) {
-            mostrarDialogoNuevoCortador();
+        if (mainTabPane.getSelectionModel().getSelectedItem() == tabCortadores) {
+            ejecutarNuevoCortador();
         }
     }
 
-    private void mostrarDialogoNuevoCortador() {
-        // 1. Obtener usuarios que aún no son cortadores
-        List<AppDTO.UserResponse> todosUsuarios = usuariosTable.getItems();
-        List<Long> idsYaCortadores = cortadoresTable.getItems().stream()
-                .map(c -> c.userId)
-                .toList();
+    private void ejecutarNuevoCortador() {
+        // Obtenemos usuarios activos que no son cortadores
+        List<Long> idsYaCortadores = cortadoresTable.getItems().stream().map(c -> c.userId).toList();
+        List<AppDTO.UserResponse> disponibles = usuariosTable.getItems().stream()
+                .filter(u -> !idsYaCortadores.contains(u.id) && Boolean.TRUE.equals(u.isActive)).toList();
 
-        List<AppDTO.UserResponse> usuariosSinCortador = todosUsuarios.stream()
-                .filter(u -> !idsYaCortadores.contains(u.id))
-                .filter(u -> Boolean.TRUE.equals(u.isActive))
-                .toList();
-
-        if (usuariosSinCortador.isEmpty()) {
-            mostrarAlerta(Alert.AlertType.INFORMATION,
-                    "Sin usuarios disponibles",
-                    "Todos los usuarios activos ya tienen perfil de cortador.\n"
-                            + "Registra un nuevo usuario primero.");
+        if (disponibles.isEmpty()) {
+            AlertHelper.showInfo("Sin usuarios", "Todos los usuarios activos ya son cortadores.");
             return;
         }
 
-        // 2. Construir el diálogo
+        // Construcción del diálogo de creación
         Dialog<ButtonType> dialog = new Dialog<>();
         dialog.setTitle("Nuevo cortador");
-        dialog.setHeaderText("Asignar perfil de cortador a un usuario");
-
-        ComboBox<AppDTO.UserResponse> cbUsuario = new ComboBox<>();
-        cbUsuario.getItems().addAll(usuariosSinCortador);
-        cbUsuario.setCellFactory(lv -> new ListCell<>() {
-            @Override
-            protected void updateItem(AppDTO.UserResponse u, boolean empty) {
-                super.updateItem(u, empty);
-                setText(empty || u == null ? null
-                        : u.firstName + " " + u.lastName + " (" + u.email + ")");
-            }
-        });
-        cbUsuario.setButtonCell(new ListCell<>() {
-            @Override
-            protected void updateItem(AppDTO.UserResponse u, boolean empty) {
-                super.updateItem(u, empty);
-                setText(empty || u == null ? null
-                        : u.firstName + " " + u.lastName + " (" + u.email + ")");
-            }
-        });
-        cbUsuario.setPrefWidth(350);
-        cbUsuario.getSelectionModel().selectFirst();
-
-        ComboBox<String> cbEspecialidad = new ComboBox<>();
-        cbEspecialidad.getItems().addAll(
-                "Jam\u00f3n Ib\u00e9rico", "Jam\u00f3n Serrano", "Paleta", "Embutidos", "Todos");
-        cbEspecialidad.getSelectionModel().selectFirst();
-        cbEspecialidad.setPrefWidth(350);
-
-        TextField tfExperiencia = new TextField("0");
-        tfExperiencia.setPromptText("A\u00f1os de experiencia");
-
-        TextField tfMaxJamones = new TextField("3");
-        tfMaxJamones.setPromptText("M\u00e1x. jamones por d\u00eda (1-10)");
-
-        VBox content = new VBox(8,
-                new Label("Usuario:"),       cbUsuario,
-                new Label("Especialidad:"),  cbEspecialidad,
-                new Label("A\u00f1os de experiencia:"), tfExperiencia,
-                new Label("M\u00e1x. jamones/d\u00eda:"), tfMaxJamones);
+        ComboBox<AppDTO.UserResponse> cbUser = new ComboBox<>();
+        cbUser.getItems().addAll(disponibles);
+        cbUser.setPrefWidth(300);
+        
+        VBox content = new VBox(8, new Label("Selecciona Usuario:"), cbUser);
         content.setPadding(new Insets(16));
-
         dialog.getDialogPane().setContent(content);
         dialog.getDialogPane().getButtonTypes().addAll(ButtonType.OK, ButtonType.CANCEL);
 
-        Optional<ButtonType> result = dialog.showAndWait();
-        if (result.isPresent() && result.get() == ButtonType.OK) {
-            AppDTO.UserResponse usuarioSeleccionado = cbUsuario.getValue();
-            if (usuarioSeleccionado == null) {
-                mostrarAlerta(Alert.AlertType.WARNING, "Sin selecci\u00f3n",
-                        "Debes seleccionar un usuario.");
-                return;
-            }
-            try {
-                int exp = Integer.parseInt(tfExperiencia.getText().trim());
-                int max = Integer.parseInt(tfMaxJamones.getText().trim());
-
-                if (exp < 0) {
-                    mostrarAlerta(Alert.AlertType.WARNING, "Valor inv\u00e1lido",
-                            "Los a\u00f1os de experiencia no pueden ser negativos.");
-                    return;
-                }
-                if (max < 1 || max > 10) {
-                    mostrarAlerta(Alert.AlertType.WARNING, "Valor inv\u00e1lido",
-                            "El m\u00e1ximo de jamones debe estar entre 1 y 10.");
-                    return;
-                }
-
-                final int expFinal = exp;
-                final int maxFinal = max;
-                final AppDTO.UserResponse userFinal = usuarioSeleccionado;
-                final String especialidadFinal = cbEspecialidad.getValue();
-
-                Thread t = new Thread(() -> {
-                    try {
-                        java.util.Map<String, Object> body = new java.util.LinkedHashMap<>();
-                        body.put("userId", userFinal.id);
-                        body.put("specialty", especialidadFinal);
-                        body.put("experienceYears", expFinal);
-                        body.put("maxHamsPerDay", maxFinal);
-                        ApiClient.getInstance().post("/carvers", body,
-                                AppDTO.CarverResponse.class);
-                        Platform.runLater(() -> {
-                            mostrarAlerta(Alert.AlertType.INFORMATION,
-                                    "\u00c9xito",
-                                    "Cortador creado correctamente.");
-                            cargarDatos();
-                        });
-                    } catch (ApiClient.ApiException ex) {
-                        Platform.runLater(() ->
-                                mostrarAlerta(Alert.AlertType.ERROR,
-                                        "Error", ex.getMessage()));
+        dialog.showAndWait().ifPresent(btn -> {
+            if (btn == ButtonType.OK && cbUser.getValue() != null) {
+                Task<Void> task = new Task<>() {
+                    @Override protected Void call() throws Exception {
+                        java.util.Map<String, Object> b = new java.util.LinkedHashMap<>();
+                        b.put("userId", cbUser.getValue().id);
+                        b.put("specialty", "General");
+                        b.put("experienceYears", 0);
+                        b.put("maxHamsPerDay", 3);
+                        ApiClient.getInstance().post("/carvers", b, AppDTO.CarverResponse.class);
+                        return null;
                     }
-                });
-                t.setDaemon(true);
-                t.start();
-
-            } catch (NumberFormatException ex) {
-                mostrarAlerta(Alert.AlertType.WARNING, "Datos inv\u00e1lidos",
-                        "Introduce n\u00fameros v\u00e1lidos en los campos num\u00e9ricos.");
+                };
+                task.setOnSucceeded(e -> { AlertHelper.showInfo("Éxito", "Cortador creado."); cargarDatos(); });
+                task.setOnFailed(e -> AlertHelper.showError("Error", task.getException().getMessage()));
+                new Thread(task).start();
             }
-        }
+        });
     }
 
     @FXML private void handleLogout() {
         SessionManager.getInstance().clear();
-        navigateTo("/com/hambooking/frontend/fxml/login.fxml",
-                "HamBooking - Iniciar sesi\u00f3n");
+        try {
+            ViewManager.getInstance().navigateTo("/com/hambooking/frontend/fxml/login.fxml", "HamBooking - Iniciar sesión");
+        } catch (IOException e) { e.printStackTrace(); }
     }
 
-    // ── Utilidades ───────────────────────────────────────────────────────
-
-    private void mostrarAlerta(Alert.AlertType tipo, String titulo, String mensaje) {
-        Alert alert = new Alert(tipo);
-        alert.setTitle(titulo);
-        alert.setHeaderText(null);
-        alert.setContentText(mensaje);
-        alert.showAndWait();
-    }
+    // ── Región: Utilidades ───────────────────────────────────────────────
 
     private String traducirEstado(String status) {
         if (status == null) return "";
@@ -719,23 +498,13 @@ public class AdminDashboardController implements Initializable {
     private String traducirTipoNotif(String tipo) {
         if (tipo == null) return "";
         return switch (tipo) {
-            case "CREATED"   -> "Creaci\u00f3n";
-            case "MODIFIED"  -> "Modificaci\u00f3n";
-            case "CANCELLED" -> "Cancelaci\u00f3n";
+            case "CREATED"   -> "Creación";
+            case "MODIFIED"  -> "Modificación";
+            case "CANCELLED" -> "Cancelación";
             case "REMINDER"  -> "Recordatorio";
             default          -> tipo;
         };
     }
 
-    private void navigateTo(String fxmlPath, String title) {
-        try {
-            FXMLLoader loader = new FXMLLoader(getClass().getResource(fxmlPath));
-            Parent root = loader.load();
-            Stage stage = (Stage) mainTabPane.getScene().getWindow();
-            stage.getScene().setRoot(root);
-            stage.setTitle(title);
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-    }
+    private String formatFecha(LocalDate date) { return date != null ? date.format(FMT_FECHA) : ""; }
 }

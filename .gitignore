@@ -58,3 +58,6 @@ Thumbs.db
 *.env
 application-local.properties
 hs_err_pid*
+.github/
+.gemini/
+GEMINI.md

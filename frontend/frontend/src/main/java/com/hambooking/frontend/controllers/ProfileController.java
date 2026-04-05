@@ -3,13 +3,12 @@ package com.hambooking.frontend.controllers;
 import com.hambooking.frontend.SessionManager;
 import com.hambooking.frontend.dto.AppDTO;
 import com.hambooking.frontend.service.ApiClient;
+import com.hambooking.frontend.util.AlertHelper;
+import com.hambooking.frontend.util.ViewManager;
 import javafx.application.Platform;
 import javafx.fxml.FXML;
-import javafx.fxml.FXMLLoader;
 import javafx.fxml.Initializable;
-import javafx.scene.Parent;
 import javafx.scene.control.*;
-import javafx.stage.Stage;
 
 import java.io.IOException;
 import java.net.URL;
@@ -98,11 +97,7 @@ public class ProfileController implements Initializable {
                     pfNueva.clear();
                     pfConfirmar.clear();
                     ocultarError();
-                    Alert alert = new Alert(Alert.AlertType.INFORMATION);
-                    alert.setTitle("\u00c9xito");
-                    alert.setHeaderText(null);
-                    alert.setContentText("Contrase\u00f1a actualizada correctamente.");
-                    alert.showAndWait();
+                    AlertHelper.showInfo("\u00c9xito", "Contrase\u00f1a actualizada correctamente.");
                 });
             } catch (ApiClient.ApiException ex) {
                 Platform.runLater(() -> mostrarError(ex.getMessage()));
@@ -150,11 +145,7 @@ public class ProfileController implements Initializable {
 
     private void navigateTo(String fxmlPath, String title) {
         try {
-            FXMLLoader loader = new FXMLLoader(getClass().getResource(fxmlPath));
-            Parent root = loader.load();
-            Stage stage = (Stage) lblNombre.getScene().getWindow();
-            stage.getScene().setRoot(root);
-            stage.setTitle(title);
+            ViewManager.getInstance().navigateTo(fxmlPath, title);
         } catch (IOException e) {
             e.printStackTrace();
         }
