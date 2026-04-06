@@ -3,6 +3,7 @@ package com.hambooking.frontend.controllers;
 import com.hambooking.frontend.SessionManager;
 import com.hambooking.frontend.dto.AppDTO;
 import com.hambooking.frontend.service.ApiClient;
+import com.hambooking.frontend.service.ApiException;
 import com.hambooking.frontend.util.ViewManager;
 import javafx.application.Platform;
 import javafx.beans.property.SimpleStringProperty;
@@ -18,6 +19,10 @@ import java.util.List;
 import java.util.Locale;
 import java.util.ResourceBundle;
 
+/**
+ * Controlador para la vista de notificaciones del cliente.
+ * Muestra el historial de avisos relacionados con sus reservas.
+ */
 public class NotificationsController implements Initializable {
 
     @FXML private Label sidebarUserName;
@@ -45,10 +50,10 @@ public class NotificationsController implements Initializable {
                 traducirTipo(d.getValue().notificationType)));
         nColAsunto.setCellValueFactory(d -> new SimpleStringProperty(
                 d.getValue().subject != null ? d.getValue().subject : ""));
-        // Mensaje con wrap de texto para que se lea completo
+        
         nColMensaje.setCellValueFactory(d -> new SimpleStringProperty(
                 d.getValue().message != null ? d.getValue().message : ""));
-        nColMensaje.setCellFactory(col -> new TableCell<AppDTO.NotificationResponse, String>() {
+        nColMensaje.setCellFactory(col -> new TableCell<>() {
             private final Text text = new Text();
             {
                 text.wrappingWidthProperty().bind(nColMensaje.widthProperty().subtract(10));
@@ -72,7 +77,7 @@ public class NotificationsController implements Initializable {
                         .getList("/notifications/user/" + userId,
                                 AppDTO.NotificationResponse.class);
                 Platform.runLater(() -> notifTable.getItems().setAll(notifs));
-            } catch (ApiClient.ApiException ex) {
+            } catch (ApiException ex) {
                 Platform.runLater(() ->
                         sidebarUserName.setText("Error: " + ex.getMessage()));
             }
@@ -81,27 +86,23 @@ public class NotificationsController implements Initializable {
         t.start();
     }
 
-    // ── Navegacion ───────────────────────────────────────────────
+    // ── Navegación ───────────────────────────────────────────────
 
     @FXML private void goToCalendar() {
-        navigateTo("/com/hambooking/frontend/fxml/calendar.fxml",
-                "HamBooking - Nueva Reserva");
+        navigateTo("/com/hambooking/frontend/fxml/calendar.fxml", "HamBooking - Nueva Reserva");
     }
 
     @FXML private void goToDashboard() {
-        navigateTo("/com/hambooking/frontend/fxml/client-dashboard.fxml",
-                "HamBooking - Mi Panel");
+        navigateTo("/com/hambooking/frontend/fxml/client-dashboard.fxml", "HamBooking - Mi Panel");
     }
 
     @FXML private void goToProfile() {
-        navigateTo("/com/hambooking/frontend/fxml/profile.fxml",
-                "HamBooking - Mi Perfil");
+        navigateTo("/com/hambooking/frontend/fxml/profile.fxml", "HamBooking - Mi Perfil");
     }
 
     @FXML private void handleLogout() {
         SessionManager.getInstance().clear();
-        navigateTo("/com/hambooking/frontend/fxml/login.fxml",
-                "HamBooking - Iniciar sesi\u00f3n");
+        navigateTo("/com/hambooking/frontend/fxml/login.fxml", "HamBooking - Iniciar sesión");
     }
 
     // ── Utilidades ───────────────────────────────────────────────
@@ -109,9 +110,9 @@ public class NotificationsController implements Initializable {
     private String traducirTipo(String tipo) {
         if (tipo == null) return "";
         return switch (tipo) {
-            case "CREATED"   -> "Creaci\u00f3n";
-            case "MODIFIED"  -> "Modificaci\u00f3n";
-            case "CANCELLED" -> "Cancelaci\u00f3n";
+            case "CREATED"   -> "Creación";
+            case "MODIFIED"  -> "Modificación";
+            case "CANCELLED" -> "Cancelación";
             case "REMINDER"  -> "Recordatorio";
             default          -> tipo;
         };

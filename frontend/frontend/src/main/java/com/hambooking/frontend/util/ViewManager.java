@@ -1,51 +1,56 @@
 package com.hambooking.frontend.util;
 
+import javafx.application.Platform;
 import javafx.fxml.FXMLLoader;
 import javafx.scene.Parent;
 import javafx.scene.Scene;
 import javafx.stage.Stage;
 
 import java.io.IOException;
+import java.net.URL;
 
 /**
- * Utilidad centralizada para gestionar la navegación entre vistas (FXML) de JavaFX.
- * Implementa el patrón Singleton para mantener la referencia al Stage principal
- * y evita la duplicación de métodos "navigateTo" en múltiples controladores.
+ * Gestor centralizado de navegación para la aplicación HamBooking.
+ * Implementa el patrón Singleton para controlar el Stage principal y facilitar
+ * el intercambio de vistas FXML de forma consistente.
  */
-public class ViewManager {
+public final class ViewManager {
 
-    private static ViewManager instance;
     private Stage mainStage;
 
     /**
-     * Constructor privado para evitar instanciación externa.
+     * Constructor privado para el patrón Singleton.
      */
     private ViewManager() {}
 
     /**
-     * Obtiene la única instancia de la clase.
+     * Clase estática interna para la inicialización segura del Singleton (Bill Pugh Singleton).
+     */
+    private static class Holder {
+        private static final ViewManager INSTANCE = new ViewManager();
+    }
+
+    /**
+     * Obtiene la instancia única del gestor de vistas.
      *
      * @return La instancia de ViewManager.
      */
     public static ViewManager getInstance() {
-        if (instance == null) {
-            instance = new ViewManager();
-        }
-        return instance;
+        return Holder.INSTANCE;
     }
 
     /**
-     * Inicializa el gestor de vistas con el Stage principal.
-     * Este método debe llamarse al arrancar la aplicación.
+     * Configura el escenario (Stage) principal de la aplicación.
+     * Este método debe llamarse una sola vez durante el inicio de la aplicación.
      *
-     * @param mainStage El Stage principal de la aplicación.
+     * @param mainStage El escenario principal de JavaFX.
      */
-    public void setMainStage(Stage mainStage) {
+    public void setMainStage(final Stage mainStage) {
         this.mainStage = mainStage;
     }
 
     /**
-     * Obtiene el Stage principal de la aplicación.
+     * Obtiene el escenario principal de la aplicación.
      *
      * @return El Stage principal.
      */
@@ -54,30 +59,37 @@ public class ViewManager {
     }
 
     /**
-     * Navega hacia una nueva vista a partir de un archivo FXML.
+     * Navega a una nueva vista cargando un archivo FXML.
      * Sustituye la raíz de la escena actual para mantener el mismo Stage.
      *
-     * @param fxmlPath Ruta absoluta al archivo FXML (ej. "/com/hambooking/frontend/fxml/login.fxml").
-     * @param title    El nuevo título que tendrá la ventana.
-     * @throws IOException Si ocurre un problema leyendo el archivo FXML.
-     * @throws IllegalStateException Si no se ha configurado el Stage principal previamente.
+     * @param fxmlPath Ruta al recurso FXML (ej. "/com/hambooking/frontend/fxml/login.fxml").
+     * @param title    Nuevo título para la ventana.
+     * @throws IOException Si ocurre un error al cargar el archivo FXML.
+     * @throws IllegalStateException Si el Stage principal no ha sido configurado previamente.
      */
-    public void navigateTo(String fxmlPath, String title) throws IOException {
+    public void navigateTo(final String fxmlPath, final String title) throws IOException {
         if (mainStage == null) {
-            throw new IllegalStateException("ViewManager no tiene configurado el mainStage. Llame a setMainStage() primero.");
+            throw new IllegalStateException("ViewManager: El Stage principal no ha sido configurado. Llame a setMainStage() primero.");
         }
 
-        FXMLLoader loader = new FXMLLoader(getClass().getResource(fxmlPath));
+        URL resource = getClass().getResource(fxmlPath);
+        if (resource == null) {
+            throw new IOException("No se pudo encontrar el archivo FXML en: " + fxmlPath);
+        }
+
+        FXMLLoader loader = new FXMLLoader(resource);
         Parent root = loader.load();
 
-        Scene scene = mainStage.getScene();
-        if (scene == null) {
-            scene = new Scene(root);
-            mainStage.setScene(scene);
-        } else {
-            scene.setRoot(root);
-        }
-        
-        mainStage.setTitle(title);
+        Platform.runLater(() -> {
+            Scene scene = mainStage.getScene();
+            if (scene == null) {
+                scene = new Scene(root);
+                mainStage.setScene(scene);
+            } else {
+                scene.setRoot(root);
+            }
+            mainStage.setTitle(title);
+            mainStage.centerOnScreen();
+        });
     }
 }

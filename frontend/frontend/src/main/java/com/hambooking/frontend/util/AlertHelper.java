@@ -1,64 +1,67 @@
 package com.hambooking.frontend.util;
 
+import javafx.application.Platform;
 import javafx.scene.control.Alert;
 import javafx.scene.control.ButtonType;
 
 import java.util.Optional;
 
 /**
- * Utilidad estática para mostrar cuadros de diálogo y alertas estándar de JavaFX.
- * Mantiene la consistencia visual y reduce la duplicación de código en la UI.
+ * Utilidad estática para gestionar la visualización de diálogos y alertas en JavaFX.
+ * Esta clase garantiza la consistencia visual y facilita la comunicación con el usuario.
+ * Proporciona métodos seguros para hilos (thread-safe) para alertas informativas.
  */
-public class AlertHelper {
+public final class AlertHelper {
 
     /**
-     * Constructor privado para evitar la instanciación (clase utilitaria estática).
+     * Constructor privado para impedir la instanciación de esta clase utilitaria.
      */
-    private AlertHelper() {}
-
-    /**
-     * Muestra una alerta informativa al usuario.
-     * Útil para mensajes de éxito o indicaciones no críticas.
-     *
-     * @param title   Título de la ventana de alerta.
-     * @param message Contenido de la alerta con los detalles.
-     */
-    public static void showInfo(String title, String message) {
-        showAlert(Alert.AlertType.INFORMATION, title, null, message);
+    private AlertHelper() {
+        throw new UnsupportedOperationException("Esta es una clase utilitaria y no puede ser instanciada.");
     }
 
     /**
-     * Muestra una alerta de error.
-     * Se debe invocar cuando ocurre un fallo o excepción no recuperable en una operación.
+     * Muestra una alerta informativa. Es seguro llamarlo desde cualquier hilo.
      *
-     * @param title   Título de la ventana de alerta (ej. "Error de red").
-     * @param message Descripción clara del problema.
+     * @param title   Título de la ventana de diálogo.
+     * @param message Mensaje detallado que se mostrará al usuario.
      */
-    public static void showError(String title, String message) {
-        showAlert(Alert.AlertType.ERROR, title, null, message);
+    public static void showInfo(final String title, final String message) {
+        runOnFxThread(() -> showAlert(Alert.AlertType.INFORMATION, title, null, message));
     }
 
     /**
-     * Muestra una alerta de advertencia.
-     * Indica una acción que el usuario debería revisar o que no se pudo completar idealmente.
+     * Muestra una alerta de error. Es seguro llamarlo desde cualquier hilo.
+     * Ideal para notificar fallos de red o errores de validación críticos.
      *
-     * @param title   Título de la ventana de alerta.
-     * @param message Motivo de la advertencia.
+     * @param title   Título descriptivo del error.
+     * @param message Explicación del problema para el usuario final.
      */
-    public static void showWarning(String title, String message) {
-        showAlert(Alert.AlertType.WARNING, title, null, message);
+    public static void showError(final String title, final String message) {
+        runOnFxThread(() -> showAlert(Alert.AlertType.ERROR, title, null, message));
     }
 
     /**
-     * Muestra un diálogo de confirmación solicitando al usuario aprobar o rechazar una acción.
-     * Se bloqueará el hilo de la UI hasta que el usuario escoja una opción.
+     * Muestra una alerta de advertencia. Es seguro llamarlo desde cualquier hilo.
      *
-     * @param title   Título de la ventana de alerta.
-     * @param header  Cabecera de texto (opcional, si es null o vacío no se mostrará cabecera destacada).
-     * @param message Descripción de la acción destructiva o importante.
-     * @return Un {@code Optional<ButtonType>} con el botón pulsado por el usuario (ej. ButtonType.OK).
+     * @param title   Título de la advertencia.
+     * @param message Motivo por el cual se requiere atención del usuario.
      */
-    public static Optional<ButtonType> showConfirmation(String title, String header, String message) {
+    public static void showWarning(final String title, final String message) {
+        runOnFxThread(() -> showAlert(Alert.AlertType.WARNING, title, null, message));
+    }
+
+    /**
+     * Muestra un diálogo de confirmación bloqueante. 
+     * NOTA: Este método debe ser invocado exclusivamente desde el JavaFX Application Thread
+     * ya que espera y devuelve un resultado interactivo.
+     *
+     * @param title   Título del diálogo de confirmación.
+     * @param header  Texto de cabecera opcional (puede ser null).
+     * @param message Pregunta o acción que el usuario debe confirmar.
+     * @return Un {@code Optional<ButtonType>} con la elección del usuario.
+     */
+    public static Optional<ButtonType> showConfirmation(final String title, final String header, final String message) {
         Alert alert = new Alert(Alert.AlertType.CONFIRMATION);
         alert.setTitle(title);
         alert.setHeaderText(header);
@@ -67,18 +70,31 @@ public class AlertHelper {
     }
 
     /**
-     * Método interno para la construcción genérica de las alertas de UI.
+     * Método interno para construir y mostrar la alerta.
      *
-     * @param type    El tipo de alerta (INFO, ERROR, WARNING).
-     * @param title   El título de la ventana.
-     * @param header  El texto del encabezado. Si es null no se reserva un gran bloque superior.
-     * @param message El cuerpo o contenido del diálogo.
+     * @param type    Tipo de alerta.
+     * @param title   Título de la ventana.
+     * @param header  Encabezado (puede ser null).
+     * @param message Contenido del mensaje.
      */
-    private static void showAlert(Alert.AlertType type, String title, String header, String message) {
+    private static void showAlert(final Alert.AlertType type, final String title, final String header, final String message) {
         Alert alert = new Alert(type);
         alert.setTitle(title);
         alert.setHeaderText(header);
         alert.setContentText(message);
         alert.showAndWait();
+    }
+
+    /**
+     * Garantiza que la ejecución se realice en el hilo de la interfaz de usuario de JavaFX.
+     *
+     * @param action Acción a ejecutar.
+     */
+    private static void runOnFxThread(final Runnable action) {
+        if (Platform.isFxApplicationThread()) {
+            action.run();
+        } else {
+            Platform.runLater(action);
+        }
     }
 }

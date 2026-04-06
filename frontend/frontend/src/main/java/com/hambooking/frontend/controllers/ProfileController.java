@@ -3,6 +3,7 @@ package com.hambooking.frontend.controllers;
 import com.hambooking.frontend.SessionManager;
 import com.hambooking.frontend.dto.AppDTO;
 import com.hambooking.frontend.service.ApiClient;
+import com.hambooking.frontend.service.ApiException;
 import com.hambooking.frontend.util.AlertHelper;
 import com.hambooking.frontend.util.ViewManager;
 import javafx.application.Platform;
@@ -16,25 +17,27 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.ResourceBundle;
 
+/**
+ * Controlador para la gestión del perfil de usuario y cambio de contraseña.
+ */
 public class ProfileController implements Initializable {
 
-    @FXML private Label         sidebarUserName;
-    @FXML private Label         lblNombre;
-    @FXML private Label         lblApellidos;
-    @FXML private Label         lblDni;
-    @FXML private Label         lblEmail;
-    @FXML private Label         lblTelefono;
+    @FXML private Label sidebarUserName;
+    @FXML private Label lblNombre;
+    @FXML private Label lblApellidos;
+    @FXML private Label lblDni;
+    @FXML private Label lblEmail;
+    @FXML private Label lblTelefono;
     @FXML private PasswordField pfActual;
     @FXML private PasswordField pfNueva;
     @FXML private PasswordField pfConfirmar;
-    @FXML private Label         lblError;
+    @FXML private Label lblError;
 
     @Override
     public void initialize(URL location, ResourceBundle resources) {
         SessionManager session = SessionManager.getInstance();
         sidebarUserName.setText(session.getFullName());
-        lblError.setVisible(false);
-        lblError.setManaged(false);
+        ocultarError();
         cargarDatosUsuario();
     }
 
@@ -51,7 +54,7 @@ public class ProfileController implements Initializable {
                     lblEmail.setText(user.email != null ? user.email : "");
                     lblTelefono.setText(user.phone != null ? user.phone : "");
                 });
-            } catch (ApiClient.ApiException ex) {
+            } catch (ApiException ex) {
                 Platform.runLater(() -> mostrarError("Error al cargar perfil: " + ex.getMessage()));
             }
         });
@@ -61,26 +64,28 @@ public class ProfileController implements Initializable {
 
     @FXML
     private void handleCambiarPassword() {
-        String actual    = pfActual.getText();
-        String nueva     = pfNueva.getText();
+        String actual = pfActual.getText();
+        String nueva = pfNueva.getText();
         String confirmar = pfConfirmar.getText();
 
         if (actual.isEmpty() || nueva.isEmpty() || confirmar.isEmpty()) {
-            mostrarError("Todos los campos de contrase\u00f1a son obligatorios.");
+            mostrarError("Todos los campos de contraseña son obligatorios.");
             return;
         }
         if (nueva.length() < 8) {
-            mostrarError("La nueva contrase\u00f1a debe tener al menos 8 caracteres.");
+            mostrarError("La nueva contraseña debe tener al menos 8 caracteres.");
             return;
         }
+        
         boolean tieneMayuscula = nueva.chars().anyMatch(Character::isUpperCase);
-        boolean tieneNumero    = nueva.chars().anyMatch(Character::isDigit);
+        boolean tieneNumero = nueva.chars().anyMatch(Character::isDigit);
+        
         if (!tieneMayuscula || !tieneNumero) {
-            mostrarError("La contrase\u00f1a debe tener al menos una may\u00fascula y un n\u00famero.");
+            mostrarError("La contraseña debe tener al menos una mayúscula y un número.");
             return;
         }
         if (!nueva.equals(confirmar)) {
-            mostrarError("Las contrase\u00f1as no coinciden.");
+            mostrarError("Las contraseñas no coinciden.");
             return;
         }
 
@@ -97,9 +102,9 @@ public class ProfileController implements Initializable {
                     pfNueva.clear();
                     pfConfirmar.clear();
                     ocultarError();
-                    AlertHelper.showInfo("\u00c9xito", "Contrase\u00f1a actualizada correctamente.");
+                    AlertHelper.showInfo("Éxito", "Contraseña actualizada correctamente.");
                 });
-            } catch (ApiClient.ApiException ex) {
+            } catch (ApiException ex) {
                 Platform.runLater(() -> mostrarError(ex.getMessage()));
             }
         });
@@ -107,27 +112,23 @@ public class ProfileController implements Initializable {
         t.start();
     }
 
-    // ── Navegacion ───────────────────────────────────────────────
+    // ── Navegación ───────────────────────────────────────────────
 
     @FXML private void goToCalendar() {
-        navigateTo("/com/hambooking/frontend/fxml/calendar.fxml",
-                "HamBooking - Nueva Reserva");
+        navigateTo("/com/hambooking/frontend/fxml/calendar.fxml", "HamBooking - Nueva Reserva");
     }
 
     @FXML private void goToDashboard() {
-        navigateTo("/com/hambooking/frontend/fxml/client-dashboard.fxml",
-                "HamBooking - Mi Panel");
+        navigateTo("/com/hambooking/frontend/fxml/client-dashboard.fxml", "HamBooking - Mi Panel");
     }
 
     @FXML private void goToNotifications() {
-        navigateTo("/com/hambooking/frontend/fxml/notifications.fxml",
-                "HamBooking - Notificaciones");
+        navigateTo("/com/hambooking/frontend/fxml/notifications.fxml", "HamBooking - Notificaciones");
     }
 
     @FXML private void handleLogout() {
         SessionManager.getInstance().clear();
-        navigateTo("/com/hambooking/frontend/fxml/login.fxml",
-                "HamBooking - Iniciar sesi\u00f3n");
+        navigateTo("/com/hambooking/frontend/fxml/login.fxml", "HamBooking - Iniciar sesión");
     }
 
     // ── Utilidades ───────────────────────────────────────────────
