@@ -6,10 +6,12 @@ import com.hambooking.frontend.service.ApiClient;
 import com.hambooking.frontend.service.ApiException;
 import com.hambooking.frontend.util.AlertHelper;
 import com.hambooking.frontend.util.ViewManager;
-import javafx.application.Platform;
+import javafx.concurrent.Task;
 import javafx.fxml.FXML;
 import javafx.fxml.Initializable;
-import javafx.scene.control.*;
+import javafx.scene.control.Control;
+import javafx.scene.control.Label;
+import javafx.scene.control.PasswordField;
 
 import java.io.IOException;
 import java.net.URL;
@@ -18,9 +20,11 @@ import java.util.Map;
 import java.util.ResourceBundle;
 
 /**
- * Controlador para la gestión del perfil de usuario y cambio de contraseña.
+ * Controlador Senior para la gestión del perfil de usuario y cambio de contraseña.
+ * Refactorizado para usar Task de JavaFX, navegación semántica y UX proactiva
+ * (feedback visual de errores en el formulario).
  */
-public class ProfileController implements Initializable {
+public final class ProfileController implements Initializable {
 
     @FXML private Label sidebarUserName;
     @FXML private Label lblNombre;
@@ -28,112 +32,216 @@ public class ProfileController implements Initializable {
     @FXML private Label lblDni;
     @FXML private Label lblEmail;
     @FXML private Label lblTelefono;
+    
     @FXML private PasswordField pfActual;
     @FXML private PasswordField pfNueva;
     @FXML private PasswordField pfConfirmar;
     @FXML private Label lblError;
 
+    private static final String ERROR_CLASS = "error-field";
+
     @Override
-    public void initialize(URL location, ResourceBundle resources) {
-        SessionManager session = SessionManager.getInstance();
+    public void initialize(final URL location, final ResourceBundle resources) {
+        final SessionManager session = SessionManager.getInstance();
         sidebarUserName.setText(session.getFullName());
         ocultarError();
+        configurarListenersLimpieza();
         cargarDatosUsuario();
     }
 
-    private void cargarDatosUsuario() {
-        Long userId = SessionManager.getInstance().getUserId();
-        Thread t = new Thread(() -> {
-            try {
-                AppDTO.UserResponse user = ApiClient.getInstance()
-                        .get("/users/" + userId, AppDTO.UserResponse.class);
-                Platform.runLater(() -> {
-                    lblNombre.setText(user.firstName != null ? user.firstName : "");
-                    lblApellidos.setText(user.lastName != null ? user.lastName : "");
-                    lblDni.setText(user.dni != null ? user.dni : "");
-                    lblEmail.setText(user.email != null ? user.email : "");
-                    lblTelefono.setText(user.phone != null ? user.phone : "");
-                });
-            } catch (ApiException ex) {
-                Platform.runLater(() -> mostrarError("Error al cargar perfil: " + ex.getMessage()));
-            }
-        });
-        t.setDaemon(true);
-        t.start();
+    /**
+     * Configura listeners para limpiar dinámicamente el estado de error (texto y bordes rojos)
+     * en cuanto el usuario empiece a interactuar con los campos de contraseña.
+     */
+    private void configurarListenersLimpieza() {
+        limpiarErrorAlEscribir(pfActual);
+        limpiarErrorAlEscribir(pfNueva);
+        limpiarErrorAlEscribir(pfConfirmar);
     }
 
+    private void limpiarErrorAlEscribir(final Control control) {
+        if (control instanceof PasswordField pf) {
+            pf.textProperty().addListener((obs, oldV, newV) -> {
+                ocultarError();
+                control.getStyleClass().remove(ERROR_CLASS);
+            });
+        }
+    }
+
+    /**
+     * Tarea asíncrona segura (Task) para cargar los datos del perfil desde la API.
+     */
+    private void cargarDatosUsuario() {
+        final Long userId = SessionManager.getInstance().getUserId();
+        
+        final Task<AppDTO.UserResponse> loadTask = new Task<>() {
+            @Override
+            protected AppDTO.UserResponse call() throws ApiException {
+                return ApiClient.getInstance().get("/users/" + userId, AppDTO.UserResponse.class);
+            }
+        };
+
+        loadTask.setOnSucceeded(e -> {
+            final AppDTO.UserResponse user = loadTask.getValue();
+            lblNombre.setText(user.firstName != null ? user.firstName : "");
+            lblApellidos.setText(user.lastName != null ? user.lastName : "");
+            lblDni.setText(user.dni != null ? user.dni : "");
+            lblEmail.setText(user.email != null ? user.email : "");
+            lblTelefono.setText(user.phone != null ? user.phone : "");
+        });
+
+        loadTask.setOnFailed(e -> {
+            final Throwable ex = loadTask.getException();
+            if (ex instanceof ApiException apiEx) {
+                mostrarErrorGlobal("Error al cargar perfil: " + apiEx.getMessage());
+            } else {
+                mostrarErrorGlobal("Error interno al cargar los datos del perfil.");
+            }
+        });
+
+        final Thread thread = new Thread(loadTask);
+        thread.setDaemon(true);
+        thread.start();
+    }
+
+    /**
+     * Gestiona la solicitud de cambio de contraseña con validación local (UX)
+     * antes de llamar a la API de forma asíncrona.
+     */
     @FXML
     private void handleCambiarPassword() {
-        String actual = pfActual.getText();
-        String nueva = pfNueva.getText();
-        String confirmar = pfConfirmar.getText();
+        limpiarEstilosErrorGlobal();
 
-        if (actual.isEmpty() || nueva.isEmpty() || confirmar.isEmpty()) {
-            mostrarError("Todos los campos de contraseña son obligatorios.");
-            return;
-        }
-        if (nueva.length() < 8) {
-            mostrarError("La nueva contraseña debe tener al menos 8 caracteres.");
-            return;
-        }
-        
-        boolean tieneMayuscula = nueva.chars().anyMatch(Character::isUpperCase);
-        boolean tieneNumero = nueva.chars().anyMatch(Character::isDigit);
-        
-        if (!tieneMayuscula || !tieneNumero) {
-            mostrarError("La contraseña debe tener al menos una mayúscula y un número.");
-            return;
-        }
-        if (!nueva.equals(confirmar)) {
-            mostrarError("Las contraseñas no coinciden.");
+        if (!validarFormularioPassword()) {
             return;
         }
 
-        Long userId = SessionManager.getInstance().getUserId();
-        Map<String, Object> body = new LinkedHashMap<>();
+        final String actual = pfActual.getText();
+        final String nueva = pfNueva.getText();
+        final Long userId = SessionManager.getInstance().getUserId();
+
+        final Map<String, Object> body = new LinkedHashMap<>();
         body.put("currentPassword", actual);
         body.put("newPassword", nueva);
 
-        Thread t = new Thread(() -> {
-            try {
+        final Task<Void> updateTask = new Task<>() {
+            @Override
+            protected Void call() throws ApiException {
                 ApiClient.getInstance().put("/users/" + userId + "/password", body);
-                Platform.runLater(() -> {
-                    pfActual.clear();
-                    pfNueva.clear();
-                    pfConfirmar.clear();
-                    ocultarError();
-                    AlertHelper.showInfo("Éxito", "Contraseña actualizada correctamente.");
-                });
-            } catch (ApiException ex) {
-                Platform.runLater(() -> mostrarError(ex.getMessage()));
+                return null;
+            }
+        };
+
+        updateTask.setOnSucceeded(e -> {
+            pfActual.clear();
+            pfNueva.clear();
+            pfConfirmar.clear();
+            ocultarError();
+            AlertHelper.showInfo("Éxito", "Contraseña actualizada correctamente.");
+        });
+
+        updateTask.setOnFailed(e -> {
+            final Throwable ex = updateTask.getException();
+            if (ex instanceof ApiException apiEx) {
+                // Si la contraseña actual es incorrecta, mostramos el error específico.
+                fallarValidacion(pfActual, apiEx.getMessage());
+            } else {
+                mostrarErrorGlobal("Ocurrió un error inesperado al cambiar la contraseña.");
             }
         });
-        t.setDaemon(true);
-        t.start();
+
+        final Thread thread = new Thread(updateTask);
+        thread.setDaemon(true);
+        thread.start();
     }
 
-    // ── Navegación ───────────────────────────────────────────────
+    /**
+     * Validación secuencial de negocio y UX para el cambio de contraseña.
+     */
+    private boolean validarFormularioPassword() {
+        final String actual = pfActual.getText();
+        final String nueva = pfNueva.getText();
+        final String confirmar = pfConfirmar.getText();
 
-    @FXML private void goToCalendar() {
-        navigateTo("/com/hambooking/frontend/fxml/calendar.fxml", "HamBooking - Nueva Reserva");
+        if (actual.isEmpty()) {
+            return fallarValidacion(pfActual, "La contraseña actual es obligatoria.");
+        }
+        if (nueva.isEmpty()) {
+            return fallarValidacion(pfNueva, "Introduce una nueva contraseña.");
+        }
+        if (confirmar.isEmpty()) {
+            return fallarValidacion(pfConfirmar, "Confirma la nueva contraseña.");
+        }
+        
+        if (nueva.length() < 8) {
+            return fallarValidacion(pfNueva, "La nueva contraseña debe tener al menos 8 caracteres.");
+        }
+        
+        final boolean tieneMayuscula = nueva.chars().anyMatch(Character::isUpperCase);
+        final boolean tieneNumero = nueva.chars().anyMatch(Character::isDigit);
+        
+        if (!tieneMayuscula || !tieneNumero) {
+            return fallarValidacion(pfNueva, "La contraseña debe tener al menos una mayúscula y un número.");
+        }
+        
+        if (!nueva.equals(confirmar)) {
+            return fallarValidacion(pfConfirmar, "Las contraseñas nuevas no coinciden.");
+        }
+        
+        if (actual.equals(nueva)) {
+            return fallarValidacion(pfNueva, "La nueva contraseña no puede ser igual a la actual.");
+        }
+
+        return true;
     }
 
-    @FXML private void goToDashboard() {
-        navigateTo("/com/hambooking/frontend/fxml/client-dashboard.fxml", "HamBooking - Mi Panel");
+    /**
+     * Aplica el feedback visual negativo a un campo específico y muestra el mensaje.
+     */
+    private boolean fallarValidacion(final Control campo, final String mensaje) {
+        mostrarErrorGlobal(mensaje);
+        if (!campo.getStyleClass().contains(ERROR_CLASS)) {
+            campo.getStyleClass().add(ERROR_CLASS);
+        }
+        campo.requestFocus();
+        return false;
     }
 
-    @FXML private void goToNotifications() {
-        navigateTo("/com/hambooking/frontend/fxml/notifications.fxml", "HamBooking - Notificaciones");
+    private void limpiarEstilosErrorGlobal() {
+        pfActual.getStyleClass().remove(ERROR_CLASS);
+        pfNueva.getStyleClass().remove(ERROR_CLASS);
+        pfConfirmar.getStyleClass().remove(ERROR_CLASS);
     }
+
+    // ── Navegación Semántica Desacoplada ───────────────────────
+
+    @FXML private void goToCalendar() { navegarSemantico("Calendario", () -> ViewManager.getInstance().showCalendar()); }
+    @FXML private void goToDashboard() { navegarSemantico("Dashboard", () -> ViewManager.getInstance().showMainDashboard()); }
+    @FXML private void goToNotifications() { navegarSemantico("Notificaciones", () -> ViewManager.getInstance().showNotifications()); }
 
     @FXML private void handleLogout() {
         SessionManager.getInstance().clear();
-        navigateTo("/com/hambooking/frontend/fxml/login.fxml", "HamBooking - Iniciar sesión");
+        navegarSemantico("Login", () -> ViewManager.getInstance().showLogin());
     }
 
-    // ── Utilidades ───────────────────────────────────────────────
+    /** Interfaz funcional interna para simplificar los bloques try/catch de navegación. */
+    @FunctionalInterface
+    private interface Navegador {
+        void navegar() throws IOException;
+    }
 
-    private void mostrarError(String msg) {
+    /** Ejecuta la navegación y captura excepciones de forma global y segura. */
+    private void navegarSemantico(final String contexto, final Navegador runnable) {
+        try {
+            runnable.navegar();
+        } catch (IOException e) {
+            AlertHelper.showError("Error de Sistema", "No se pudo cargar la vista de " + contexto);
+        }
+    }
+
+    // ── Utilidades de Presentación ───────────────────────────────
+
+    private void mostrarErrorGlobal(final String msg) {
         lblError.setText(msg);
         lblError.setVisible(true);
         lblError.setManaged(true);
@@ -142,13 +250,6 @@ public class ProfileController implements Initializable {
     private void ocultarError() {
         lblError.setVisible(false);
         lblError.setManaged(false);
-    }
-
-    private void navigateTo(String fxmlPath, String title) {
-        try {
-            ViewManager.getInstance().navigateTo(fxmlPath, title);
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
+        lblError.setText("");
     }
 }
