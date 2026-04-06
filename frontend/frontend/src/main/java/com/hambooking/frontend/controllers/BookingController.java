@@ -3,6 +3,8 @@ package com.hambooking.frontend.controllers;
 import com.hambooking.frontend.SessionManager;
 import com.hambooking.frontend.dto.AppDTO;
 import com.hambooking.frontend.service.ApiClient;
+import com.hambooking.frontend.service.ApiException;
+import com.hambooking.frontend.util.AlertHelper;
 import com.hambooking.frontend.util.ViewManager;
 import javafx.concurrent.Task;
 import javafx.fxml.FXML;
@@ -21,135 +23,110 @@ import java.util.Locale;
 import java.util.ResourceBundle;
 
 /**
- * Controlador para la vista de confirmación de reserva.
- * Esta pantalla recibe los datos de un slot seleccionado en el calendario y permite
- * al usuario añadir notas opcionales antes de crear la reserva definitiva en el sistema.
+ * Controlador Senior para la vista de confirmación de reserva.
+ * Gestiona el paso final antes de persistir una cita, mostrando el resumen
+ * y controlando de forma segura la concurrencia y la navegación.
  */
-public class BookingController implements Initializable {
+public final class BookingController implements Initializable {
 
-    /** Etiqueta que muestra el nombre del servicio seleccionado. */
     @FXML private Label lblServicio;
-    /** Etiqueta que muestra el precio base del servicio. */
     @FXML private Label lblPrecio;
-    /** Etiqueta que muestra el nombre del cortador asignado. */
     @FXML private Label lblCortador;
-    /** Etiqueta que muestra la especialidad del cortador. */
     @FXML private Label lblEspecialidad;
-    /** Etiqueta que muestra la fecha de la reserva. */
     @FXML private Label lblFecha;
-    /** Etiqueta que muestra el rango horario de la reserva. */
     @FXML private Label lblHora;
-    /** Campo de texto para que el usuario añada observaciones o peticiones especiales. */
     @FXML private TextArea notasField;
-    /** Etiqueta para mostrar mensajes de error durante la confirmación. */
     @FXML private Label errorLabel;
-    /** Botón para confirmar y enviar la reserva a la API. */
     @FXML private Button btnConfirmar;
 
-    // ── Datos inyectados desde CalendarController ────────────────
-
-    private String    servicio;
-    private String    precio;
-    private String    cortador;
-    private String    especialidad;
+    // ── Datos inyectados del Slot ─────────────────────────────
+    private String servicio;
+    private String precio;
+    private String cortador;
+    private String especialidad;
     private LocalDate fecha;
     private LocalTime horaInicio;
     private LocalTime horaFin;
-    private Long      cortadorId;
-    private Long      servicioId;
+    private Long cortadorId;
+    private Long servicioId;
 
-    /** Formateador para fechas con nombre de día y mes en español. */
     private static final DateTimeFormatter FMT_FECHA =
             DateTimeFormatter.ofPattern("EEEE, d 'de' MMMM 'de' yyyy", new Locale("es", "ES"));
-    /** Formateador estándar para horas (HH:mm). */
     private static final DateTimeFormatter FMT_HORA =
             DateTimeFormatter.ofPattern("HH:mm");
 
-    /**
-     * Inicializa el estado visual de la etiqueta de error.
-     */
     @Override
-    public void initialize(URL location, ResourceBundle resources) {
-        errorLabel.setVisible(false);
-        errorLabel.setManaged(false);
+    public void initialize(final URL location, final ResourceBundle resources) {
+        ocultarError();
+        
+        // UX: Limpiar mensaje de error si el usuario decide escribir algo nuevo
+        notasField.textProperty().addListener((obs, oldV, newV) -> ocultarError());
     }
 
     /**
-     * Inyecta y visualiza los datos del servicio y horario seleccionado.
-     * Este método es invocado por el controlador del calendario antes de mostrar esta vista.
-     *
-     * @param servicio     Nombre del servicio.
-     * @param precio       Precio formateado.
-     * @param cortador     Nombre del cortador.
-     * @param especialidad Especialidad del cortador.
-     * @param fecha        Fecha elegida.
-     * @param horaInicio   Hora de comienzo.
-     * @param horaFin      Hora de finalización estimada.
-     * @param cortadorId   ID único del cortador.
-     * @param servicioId   ID único del servicio.
+     * Inyecta los datos del servicio y horario seleccionado desde el calendario.
      */
-    public void initData(String servicio, String precio,
-                         String cortador, String especialidad,
-                         LocalDate fecha, LocalTime horaInicio, LocalTime horaFin,
-                         Long cortadorId, Long servicioId) {
-        this.servicio     = servicio;
-        this.precio       = precio;
-        this.cortador     = cortador;
+    public void initData(final String servicio, final String precio,
+                         final String cortador, final String especialidad,
+                         final LocalDate fecha, final LocalTime horaInicio, final LocalTime horaFin,
+                         final Long cortadorId, final Long servicioId) {
+        
+        this.servicio = servicio;
+        this.precio = precio;
+        this.cortador = cortador;
         this.especialidad = especialidad;
-        this.fecha        = fecha;
-        this.horaInicio   = horaInicio;
-        this.horaFin      = horaFin;
-        this.cortadorId   = cortadorId;
-        this.servicioId   = servicioId;
+        this.fecha = fecha;
+        this.horaInicio = horaInicio;
+        this.horaFin = horaFin;
+        this.cortadorId = cortadorId;
+        this.servicioId = servicioId;
 
+        actualizarVistaResumen();
+    }
+
+    private void actualizarVistaResumen() {
         lblServicio.setText(servicio);
         lblPrecio.setText(precio);
         lblCortador.setText(cortador);
         lblEspecialidad.setText("Especialidad: " + especialidad);
         lblFecha.setText(fecha.format(FMT_FECHA));
-        lblHora.setText("De " + horaInicio.format(FMT_HORA)
-                + " a " + horaFin.format(FMT_HORA)
+        lblHora.setText("De " + horaInicio.format(FMT_HORA) + " a " + horaFin.format(FMT_HORA)
                 + "  (" + calcularDuracion() + ")");
     }
 
     /**
-     * Gestiona el clic en el botón de confirmación.
-     * Lanza una tarea asíncrona para registrar la reserva en el backend.
+     * Confirma la reserva mediante una petición asíncrona al servidor.
      */
     @FXML
     private void handleConfirmar() {
         if (servicio == null || cortadorId == null || fecha == null) {
-            showError("Faltan datos de la reserva. Vuelve al calendario.");
+            mostrarError("Faltan datos de la reserva. Por favor, vuelve al calendario.");
             return;
         }
 
-        configurarEstadoCargando(true);
-
-        Task<AppDTO.ReservationResponse> bookingTask = crearTareaReserva();
+        setLoadingState(true);
+        final Task<AppDTO.ReservationResponse> bookingTask = createBookingTask();
 
         bookingTask.setOnSucceeded(event -> {
-            // Navegar al dashboard del cliente tras el éxito
-            navigateTo("/com/hambooking/frontend/fxml/client-dashboard.fxml", "HamBooking - Mi Panel");
+            AlertHelper.showInfo("Reserva Confirmada", "Tu cita con " + cortador + " ha sido registrada con éxito.");
+            navigateToDashboard();
         });
 
         bookingTask.setOnFailed(event -> {
-            showError(bookingTask.getException().getMessage());
-            configurarEstadoCargando(false);
+            setLoadingState(false);
+            gestionarFalloReserva(bookingTask.getException());
         });
 
-        Thread thread = new Thread(bookingTask);
+        final Thread thread = new Thread(bookingTask);
         thread.setDaemon(true);
         thread.start();
     }
 
-    /**
-     * Crea la tarea encargada de realizar la petición POST de reserva.
-     */
-    private Task<AppDTO.ReservationResponse> crearTareaReserva() {
-        String notas   = notasField.getText().trim();
-        Long clientId  = SessionManager.getInstance().getUserId();
+    private Task<AppDTO.ReservationResponse> createBookingTask() {
+        final String notas = notasField.getText().trim();
+        final Long clientId = SessionManager.getInstance().getUserId();
 
-        AppDTO.CreateReservationRequest request = new AppDTO.CreateReservationRequest(
+        final AppDTO.CreateReservationRequest request = new AppDTO.CreateReservationRequest(
                 clientId, cortadorId, servicioId,
                 fecha, horaInicio,
                 notas.isEmpty() ? null : notas
@@ -157,30 +134,54 @@ public class BookingController implements Initializable {
 
         return new Task<>() {
             @Override
-            protected AppDTO.ReservationResponse call() throws Exception {
+            protected AppDTO.ReservationResponse call() throws ApiException {
                 return ApiClient.getInstance().post("/reservations", request, AppDTO.ReservationResponse.class);
             }
         };
     }
 
-    /**
-     * Cancela la operación actual y regresa al calendario de disponibilidad.
-     */
-    @FXML
-    private void handleCancelar() {
-        navigateTo("/com/hambooking/frontend/fxml/calendar.fxml", "HamBooking - Nueva Reserva");
+    private void gestionarFalloReserva(final Throwable ex) {
+        if (ex instanceof ApiException apiEx) {
+            if (apiEx.isConflict()) {
+                // Caso crítico: El slot acaba de ser reservado por otro usuario o el cliente ya tiene cita
+                AlertHelper.showWarning("Reserva No Disponible", 
+                    "Lo sentimos, ha habido un problema con la disponibilidad (el horario acaba de ser reservado por otra persona o ya tienes una cita que se solapa). Por favor, selecciona otro hueco.");
+                handleCancelar(); // Volvemos al calendario automáticamente
+            } else if (apiEx.isConnectionError()) {
+                mostrarError("Error de conexión: El servidor no responde.");
+            } else {
+                mostrarError(apiEx.getMessage());
+            }
+        } else {
+            mostrarError("Ocurrió un fallo inesperado al confirmar la reserva.");
+        }
     }
 
-    /**
-     * Calcula y formatea la duración de la reserva a partir de las horas de inicio y fin.
-     * 
-     * @return Cadena formateada (ej. "1 hora", "45 minutos").
-     */
+    @FXML
+    private void handleCancelar() {
+        try {
+            ViewManager.getInstance().showCalendar();
+        } catch (IOException e) {
+            AlertHelper.showError("Error de Navegación", "No se pudo regresar al calendario.");
+        }
+    }
+
+    private void navigateToDashboard() {
+        try {
+            ViewManager.getInstance().showMainDashboard();
+        } catch (IOException e) {
+            AlertHelper.showError("Error de Sistema", "No se pudo cargar el panel principal tras la reserva.");
+        }
+    }
+
     private String calcularDuracion() {
-        if (horaInicio == null || horaFin == null) return "";
-        long minutos = Duration.between(horaInicio, horaFin).toMinutes();
+        if (horaInicio == null || horaFin == null) {
+            return "";
+        }
+        
+        final long minutos = Duration.between(horaInicio, horaFin).toMinutes();
         if (minutos >= 60 && minutos % 60 == 0) {
-            long horas = minutos / 60;
+            final long horas = minutos / 60;
             return horas + " hora" + (horas > 1 ? "s" : "");
         } else if (minutos >= 60) {
             return (minutos / 60) + "h " + (minutos % 60) + "min";
@@ -188,31 +189,20 @@ public class BookingController implements Initializable {
         return minutos + " minutos";
     }
 
-    /**
-     * Cambia el estado de los controles durante la carga.
-     */
-    private void configurarEstadoCargando(boolean cargando) {
-        btnConfirmar.setDisable(cargando);
-        btnConfirmar.setText(cargando ? "Confirmando..." : "Confirmar reserva");
+    private void setLoadingState(final boolean loading) {
+        btnConfirmar.setDisable(loading);
+        btnConfirmar.setText(loading ? "Procesando reserva..." : "Confirmar reserva");
     }
 
-    /**
-     * Muestra un mensaje de error en la etiqueta correspondiente.
-     */
-    private void showError(String mensaje) {
-        errorLabel.setText(mensaje);
+    private void mostrarError(final String msg) {
+        errorLabel.setText(msg);
         errorLabel.setVisible(true);
         errorLabel.setManaged(true);
     }
 
-    /**
-     * Método centralizado para la navegación a través del ViewManager.
-     */
-    private void navigateTo(String fxmlPath, String title) {
-        try {
-            ViewManager.getInstance().navigateTo(fxmlPath, title);
-        } catch (IOException e) {
-            showError("Error al cargar la pantalla.");
-        }
+    private void ocultarError() {
+        errorLabel.setVisible(false);
+        errorLabel.setManaged(false);
+        errorLabel.setText("");
     }
 }
