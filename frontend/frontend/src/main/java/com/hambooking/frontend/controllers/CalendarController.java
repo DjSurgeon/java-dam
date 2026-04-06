@@ -189,15 +189,15 @@ public final class CalendarController implements Initializable {
      * Renderiza dinámicamente los botones (slots) para la columna de un cortador.
      */
     private void renderColumnaSlots(final int col, final AppDTO.CarverResponse carver, final AppDTO.ServiceResponse servicio,
-                                    final List<LocalTime> horasOcupadas, final LocalDate fecha) {
+                                    final List<LocalTime> horasLibres, final LocalDate fecha) {
         LocalTime slot = HORA_INICIO;
         int row = 1;
         
         while (slot.isBefore(HORA_FIN)) {
             final boolean suficiente = !slot.plusMinutes(servicio.durationMinutes).isAfter(HORA_FIN);
-            // La API nos devuelve las horas que ESTÁN OCUPADAS.
-            // Por tanto, está libre si NO está en la lista de horas devueltas.
-            final boolean libre = !horasOcupadas.contains(slot);
+            // La API nos devuelve las horas que ESTÁN LIBRES según el AvailabilityService.
+            // Por tanto, está libre si SÍ está en la lista de horas devueltas.
+            final boolean libre = horasLibres.contains(slot);
 
             final LocalTime slotFinal = slot;
             final Button btn = buildSlotButton(suficiente, libre, () ->
