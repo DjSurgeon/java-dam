@@ -1,5 +1,6 @@
 package com.hambooking.frontend.util;
 
+import com.hambooking.frontend.SessionManager;
 import javafx.application.Platform;
 import javafx.fxml.FXMLLoader;
 import javafx.scene.Parent;
@@ -11,65 +12,77 @@ import java.net.URL;
 
 /**
  * Gestor centralizado de navegación para la aplicación HamBooking.
- * Implementa el patrón Singleton para controlar el Stage principal y facilitar
- * el intercambio de vistas FXML de forma consistente.
+ * Centraliza las rutas FXML y gestiona la lógica de transición entre pantallas.
  */
 public final class ViewManager {
 
+    private static final String FXML_LOGIN = "/com/hambooking/frontend/fxml/login.fxml";
+    private static final String FXML_REGISTER = "/com/hambooking/frontend/fxml/register.fxml";
+    private static final String FXML_ADMIN_DASHBOARD = "/com/hambooking/frontend/fxml/admin-dashboard.fxml";
+    private static final String FXML_CLIENT_DASHBOARD = "/com/hambooking/frontend/fxml/client-dashboard.fxml";
+    private static final String FXML_PROFILE = "/com/hambooking/frontend/fxml/profile.fxml";
+    private static final String FXML_NOTIFICATIONS = "/com/hambooking/frontend/fxml/notifications.fxml";
+    private static final String FXML_CALENDAR = "/com/hambooking/frontend/fxml/calendar.fxml";
+
     private Stage mainStage;
 
-    /**
-     * Constructor privado para el patrón Singleton.
-     */
     private ViewManager() {}
 
-    /**
-     * Clase estática interna para la inicialización segura del Singleton (Bill Pugh Singleton).
-     */
     private static class Holder {
         private static final ViewManager INSTANCE = new ViewManager();
     }
 
-    /**
-     * Obtiene la instancia única del gestor de vistas.
-     *
-     * @return La instancia de ViewManager.
-     */
     public static ViewManager getInstance() {
         return Holder.INSTANCE;
     }
 
-    /**
-     * Configura el escenario (Stage) principal de la aplicación.
-     * Este método debe llamarse una sola vez durante el inicio de la aplicación.
-     *
-     * @param mainStage El escenario principal de JavaFX.
-     */
     public void setMainStage(final Stage mainStage) {
         this.mainStage = mainStage;
     }
 
-    /**
-     * Obtiene el escenario principal de la aplicación.
-     *
-     * @return El Stage principal.
-     */
     public Stage getMainStage() {
         return mainStage;
     }
 
+    // ── Métodos de Navegación Semántica ─────────────────────────
+
+    public void showLogin() throws IOException {
+        navigateTo(FXML_LOGIN, "HamBooking - Iniciar sesión");
+    }
+
+    public void showRegister() throws IOException {
+        navigateTo(FXML_REGISTER, "HamBooking - Crear cuenta");
+    }
+
+    public void showProfile() throws IOException {
+        navigateTo(FXML_PROFILE, "HamBooking - Mi Perfil");
+    }
+
+    public void showNotifications() throws IOException {
+        navigateTo(FXML_NOTIFICATIONS, "HamBooking - Notificaciones");
+    }
+
+    public void showCalendar() throws IOException {
+        navigateTo(FXML_CALENDAR, "HamBooking - Nueva Reserva");
+    }
+
     /**
-     * Navega a una nueva vista cargando un archivo FXML.
-     * Sustituye la raíz de la escena actual para mantener el mismo Stage.
-     *
-     * @param fxmlPath Ruta al recurso FXML (ej. "/com/hambooking/frontend/fxml/login.fxml").
-     * @param title    Nuevo título para la ventana.
-     * @throws IOException Si ocurre un error al cargar el archivo FXML.
-     * @throws IllegalStateException Si el Stage principal no ha sido configurado previamente.
+     * Dirige al usuario a su panel correspondiente según su rol de sesión.
      */
+    public void showMainDashboard() throws IOException {
+        SessionManager session = SessionManager.getInstance();
+        if (session.isAdmin()) {
+            navigateTo(FXML_ADMIN_DASHBOARD, "HamBooking - Panel de Administración");
+        } else {
+            navigateTo(FXML_CLIENT_DASHBOARD, "HamBooking - Mi Panel");
+        }
+    }
+
+    // ── Lógica de carga base ─────────────────────────────────────
+
     public void navigateTo(final String fxmlPath, final String title) throws IOException {
         if (mainStage == null) {
-            throw new IllegalStateException("ViewManager: El Stage principal no ha sido configurado. Llame a setMainStage() primero.");
+            throw new IllegalStateException("ViewManager: El Stage principal no ha sido configurado.");
         }
 
         URL resource = getClass().getResource(fxmlPath);

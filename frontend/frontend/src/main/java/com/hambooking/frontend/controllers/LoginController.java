@@ -19,10 +19,13 @@ import java.net.URL;
 import java.util.ResourceBundle;
 
 /**
- * Controlador de la vista de inicio de sesión.
- * Gestiona la autenticación de usuarios y la transición a los paneles principales.
+ * Controlador Senior para la vista de inicio de sesión.
+ * Implementa validación por Regex, gestión inteligente de excepciones de API
+ * y delegación de navegación al ViewManager.
  */
 public final class LoginController implements Initializable {
+
+    private static final String EMAIL_REGEX = "^[A-Za-z0-9+_.-]+@(.+)$";
 
     @FXML private TextField emailField;
     @FXML private PasswordField passwordField;
@@ -32,14 +35,11 @@ public final class LoginController implements Initializable {
     @Override
     public void initialize(final URL location, final ResourceBundle resources) {
         ocultarError();
-        // Limpiar errores mientras el usuario escribe para mejorar la UX
-        emailField.textProperty().addListener((obs, old, val) -> ocultarError());
-        passwordField.textProperty().addListener((obs, old, val) -> ocultarError());
+        // Los listeners limpian el estado de error de forma reactiva
+        emailField.textProperty().addListener(obs -> ocultarError());
+        passwordField.textProperty().addListener(obs -> ocultarError());
     }
 
-    /**
-     * Procesa la solicitud de inicio de sesión.
-     */
     @FXML
     private void handleLogin() {
         final String email = emailField.getText().trim();
@@ -53,15 +53,26 @@ public final class LoginController implements Initializable {
         final Task<AuthDTO.LoginResponse> loginTask = createLoginTask(email, password);
 
         loginTask.setOnSucceeded(event -> {
-            final AuthDTO.LoginResponse user = loginTask.getValue();
-            SessionManager.getInstance().setSession(user);
-            redigirAlDashboard(user);
+            SessionManager.getInstance().setSession(loginTask.getValue());
+            navigateToMain();
         });
 
         loginTask.setOnFailed(event -> {
             setLoadingState(false);
             final Throwable ex = loginTask.getException();
-            mostrarError(ex.getMessage());
+            
+            // Gestión inteligente de errores basada en nuestra ApiException refactorizada
+            if (ex instanceof ApiException apiEx) {
+                if (apiEx.isConnectionError()) {
+                    mostrarError("No se pudo conectar con el servidor. Revisa tu conexión.");
+                } else if (apiEx.isUnauthorized()) {
+                    mostrarError("Email o contraseña incorrectos.");
+                } else {
+                    mostrarError(apiEx.getMessage());
+                }
+            } else {
+                mostrarError("Ocurrió un error inesperado al iniciar sesión.");
+            }
         });
 
         final Thread thread = new Thread(loginTask);
@@ -69,13 +80,30 @@ public final class LoginController implements Initializable {
         thread.start();
     }
 
+    private void navigateToMain() {
+        try {
+            ViewManager.getInstance().showMainDashboard();
+        } catch (IOException e) {
+            AlertHelper.showError("Error de Sistema", "No se pudo cargar el panel principal.");
+        }
+    }
+
+    @FXML
+    private void goToRegister() {
+        try {
+            ViewManager.getInstance().showRegister();
+        } catch (IOException e) {
+            AlertHelper.showError("Error", "No se pudo cargar la vista de registro.");
+        }
+    }
+
     private boolean validarEntradas(final String email, final String password) {
         if (email.isEmpty() || password.isEmpty()) {
-            mostrarError("Email y contraseña son obligatorios.");
+            mostrarError("Por favor, rellena todos los campos.");
             return false;
         }
-        if (!email.contains("@")) {
-            mostrarError("Introduce un formato de email válido.");
+        if (!email.matches(EMAIL_REGEX)) {
+            mostrarError("El formato del email no es válido.");
             return false;
         }
         return true;
@@ -89,29 +117,6 @@ public final class LoginController implements Initializable {
                 return ApiClient.getInstance().post("/auth/login", request, AuthDTO.LoginResponse.class);
             }
         };
-    }
-
-    private void redigirAlDashboard(final AuthDTO.LoginResponse user) {
-        final boolean isAdmin = "ADMIN".equals(user.role);
-        final String fxml = isAdmin 
-                ? "/com/hambooking/frontend/fxml/admin-dashboard.fxml" 
-                : "/com/hambooking/frontend/fxml/client-dashboard.fxml";
-        final String title = isAdmin ? "HamBooking - Panel de Administración" : "HamBooking - Mi Panel";
-
-        try {
-            ViewManager.getInstance().navigateTo(fxml, title);
-        } catch (IOException e) {
-            AlertHelper.showError("Error de Navegación", "No se pudo cargar la vista del dashboard principal.");
-        }
-    }
-
-    @FXML
-    private void goToRegister() {
-        try {
-            ViewManager.getInstance().navigateTo("/com/hambooking/frontend/fxml/register.fxml", "HamBooking - Registro");
-        } catch (IOException e) {
-            AlertHelper.showError("Error", "No se pudo cargar la vista de registro.");
-        }
     }
 
     private void setLoadingState(final boolean loading) {

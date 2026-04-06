@@ -9,26 +9,21 @@ import java.io.IOException;
 
 /**
  * Clase principal de la aplicación HamBooking.
- * Configura el escenario inicial y lanza la vista de inicio de sesión.
+ * Configura el escenario inicial y lanza la vista de inicio de sesión de forma semántica.
  */
 public class HamBookingApp extends Application {
 
     @Override
     public void start(final Stage stage) {
-        // Inicializar el gestor de vistas con el Stage principal
         ViewManager.getInstance().setMainStage(stage);
 
-        // Configuración estética y de comportamiento del escenario
         stage.setMinWidth(900);
         stage.setMinHeight(560);
         stage.setResizable(true);
 
         try {
-            // Delegamos la carga inicial al ViewManager para mantener la consistencia
-            ViewManager.getInstance().navigateTo(
-                    "/com/hambooking/frontend/fxml/login.fxml", 
-                    "HamBooking - Iniciar sesión"
-            );
+            // Uso de navegación semántica: el controlador ya no conoce la ruta FXML
+            ViewManager.getInstance().showLogin();
             stage.show();
         } catch (IOException e) {
             AlertHelper.showError("Error de Inicio", "No se pudo cargar la interfaz de usuario inicial.");
