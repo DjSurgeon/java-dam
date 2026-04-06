@@ -3,9 +3,9 @@ package com.hambooking.frontend.controllers;
 import com.hambooking.frontend.SessionManager;
 import com.hambooking.frontend.dto.AppDTO;
 import com.hambooking.frontend.service.ApiClient;
+import com.hambooking.frontend.service.ApiException;
 import com.hambooking.frontend.util.AlertHelper;
 import com.hambooking.frontend.util.ViewManager;
-import javafx.application.Platform;
 import javafx.beans.property.SimpleStringProperty;
 import javafx.concurrent.Task;
 import javafx.fxml.FXML;
@@ -25,32 +25,25 @@ import java.util.ResourceBundle;
 import java.util.stream.Collectors;
 
 /**
- * Controlador para el panel principal del cliente (Dashboard).
- * Gestiona la visualización de las próximas reservas, el historial del usuario,
- * los indicadores clave de rendimiento (KPIs) y la cancelación de citas.
+ * Controlador Senior para el panel principal del cliente (Dashboard).
+ * Gestiona de forma asíncrona y segura la visualización de reservas, 
+ * historial, KPIs y la lógica de cancelación de citas.
  */
-public class ClientDashboard implements Initializable {
+public final class ClientDashboard implements Initializable {
 
     // ── Sidebar ──────────────────────────────────────────────────
-    /** Nombre completo del usuario en el panel lateral. */
     @FXML private Label sidebarUserName;
-    /** Rol actual del usuario ("Cliente"). */
     @FXML private Label sidebarUserRole;
 
     // ── Cabecera ─────────────────────────────────────────────────
-    /** Etiqueta que muestra la fecha actual formateada. */
     @FXML private Label fechaHoyLabel;
 
     // ── KPIs ─────────────────────────────────────────────────────
-    /** Indicador de total de reservas para la semana actual. */
     @FXML private Label kpiSemana;
-    /** Indicador de cupo de reservas utilizadas hoy. */
     @FXML private Label kpiCupoHoy;
-    /** Indicador de total de reservas ya completadas históricamente. */
     @FXML private Label kpiRealizadas;
 
-    // ── Tabla proximas ───────────────────────────────────────────
-    /** Tabla para mostrar las reservas activas (pendientes o confirmadas). */
+    // ── Tabla próximas ───────────────────────────────────────────
     @FXML private TableView<AppDTO.ReservationResponse> proximasTable;
     @FXML private TableColumn<AppDTO.ReservationResponse, String> colFecha;
     @FXML private TableColumn<AppDTO.ReservationResponse, String> colServicio;
@@ -60,7 +53,6 @@ public class ClientDashboard implements Initializable {
     @FXML private TableColumn<AppDTO.ReservationResponse, String> colAcciones;
 
     // ── Tabla historial ──────────────────────────────────────────
-    /** Tabla para mostrar reservas pasadas, canceladas o completadas. */
     @FXML private TableView<AppDTO.ReservationResponse> historialTable;
     @FXML private TableColumn<AppDTO.ReservationResponse, String> hColFecha;
     @FXML private TableColumn<AppDTO.ReservationResponse, String> hColServicio;
@@ -68,21 +60,16 @@ public class ClientDashboard implements Initializable {
     @FXML private TableColumn<AppDTO.ReservationResponse, String> hColHora;
     @FXML private TableColumn<AppDTO.ReservationResponse, String> hColEstado;
 
-    /** Formateador estándar para la visualización de fechas en las tablas. */
     private static final DateTimeFormatter FMT_FECHA =
             DateTimeFormatter.ofPattern("dd MMM yyyy", new Locale("es", "ES"));
 
-    /**
-     * Inicializa el panel configurando los datos del usuario, las tablas y disparando
-     * la carga asíncrona de las reservas desde el servidor.
-     */
     @Override
-    public void initialize(URL location, ResourceBundle resources) {
-        SessionManager session = SessionManager.getInstance();
+    public void initialize(final URL location, final ResourceBundle resources) {
+        final SessionManager session = SessionManager.getInstance();
         sidebarUserName.setText(session.getFullName());
         sidebarUserRole.setText("Cliente");
 
-        String fechaHoy = LocalDate.now().format(
+        final String fechaHoy = LocalDate.now().format(
                 DateTimeFormatter.ofPattern("EEEE, d 'de' MMMM 'de' yyyy", new Locale("es", "ES")));
         fechaHoyLabel.setText("Hoy es " + fechaHoy);
 
@@ -93,9 +80,6 @@ public class ClientDashboard implements Initializable {
 
     // ── Configuración de tablas ──────────────────────────────────
 
-    /**
-     * Configura las columnas y factorías de la tabla de próximas reservas.
-     */
     private void configurarTablaProximas() {
         colFecha.setCellValueFactory(d -> new SimpleStringProperty(formatFecha(d.getValue().reservationDate)));
         colServicio.setCellValueFactory(d -> new SimpleStringProperty(d.getValue().serviceName != null ? d.getValue().serviceName : ""));
@@ -105,9 +89,6 @@ public class ClientDashboard implements Initializable {
         colAcciones.setCellFactory(accionesFactory());
     }
 
-    /**
-     * Configura las columnas de la tabla de historial de reservas.
-     */
     private void configurarTablaHistorial() {
         hColFecha.setCellValueFactory(d -> new SimpleStringProperty(formatFecha(d.getValue().reservationDate)));
         hColServicio.setCellValueFactory(d -> new SimpleStringProperty(d.getValue().serviceName != null ? d.getValue().serviceName : ""));
@@ -117,48 +98,50 @@ public class ClientDashboard implements Initializable {
     }
 
     /**
-     * Crea la factoría para la columna de acciones (botones de cancelación).
+     * Factoría para inyectar el botón de cancelación en las reservas activas.
      */
     private Callback<TableColumn<AppDTO.ReservationResponse, String>,
             TableCell<AppDTO.ReservationResponse, String>> accionesFactory() {
 
-        return col -> new TableCell<AppDTO.ReservationResponse, String>() {
+        return col -> new TableCell<>() {
             private final Button btnCancelar = new Button("Cancelar");
-            private final HBox   box         = new HBox(6, btnCancelar);
+            private final HBox box = new HBox(6, btnCancelar);
 
             {
                 box.setPadding(new Insets(2, 0, 2, 0));
+                // TODO: En el futuro, mover este estilo a hambooking.css como .button-danger-small
                 btnCancelar.setStyle("-fx-font-size:11px; -fx-padding:3 8 3 8; -fx-background-color:#e74c3c; -fx-text-fill:white;");
                 btnCancelar.setOnAction(e -> {
-                    AppDTO.ReservationResponse r = getTableView().getItems().get(getIndex());
-                    cancelarReserva(r);
+                    final AppDTO.ReservationResponse r = getTableView().getItems().get(getIndex());
+                    if (r != null) {
+                        solicitarCancelacionReserva(r);
+                    }
                 });
             }
 
             @Override
-            protected void updateItem(String item, boolean empty) {
+            protected void updateItem(final String item, final boolean empty) {
                 super.updateItem(item, empty);
                 if (empty || getIndex() < 0 || getIndex() >= getTableView().getItems().size()) {
                     setGraphic(null);
                     return;
                 }
-                AppDTO.ReservationResponse r = getTableView().getItems().get(getIndex());
-                // Solo cancelable si está PENDING/CONFIRMED y es fecha futura/hoy
-                boolean cancelable = ("PENDING".equals(r.status) || "CONFIRMED".equals(r.status))
+                
+                final AppDTO.ReservationResponse r = getTableView().getItems().get(getIndex());
+                // Lógica de negocio: Solo cancelar PENDING o CONFIRMED en fechas futuras o de hoy
+                final boolean cancelable = ("PENDING".equals(r.status) || "CONFIRMED".equals(r.status))
                         && r.reservationDate != null && !r.reservationDate.isBefore(LocalDate.now());
+                
                 setGraphic(cancelable ? box : null);
             }
         };
     }
 
-    // ── Lógica de negocio ────────────────────────────────────────
+    // ── Lógica de negocio (Concurrencia) ─────────────────────────
 
-    /**
-     * Inicia el proceso de cancelación de una reserva tras confirmar con el usuario.
-     */
-    private void cancelarReserva(AppDTO.ReservationResponse reserva) {
+    private void solicitarCancelacionReserva(final AppDTO.ReservationResponse reserva) {
         AlertHelper.showConfirmation("Cancelar reserva",
-                "¿Cancelar tu reserva de " + reserva.serviceName + "?",
+                "¿Estás seguro de cancelar tu reserva de " + reserva.serviceName + "?",
                 "Fecha: " + formatFecha(reserva.reservationDate) + "\nHora: " + reserva.getHoraStr() + "\n\nEsta acción no se puede deshacer.")
         .ifPresent(btn -> {
             if (btn == ButtonType.OK) {
@@ -167,66 +150,78 @@ public class ClientDashboard implements Initializable {
         });
     }
 
-    /**
-     * Ejecuta la petición PATCH para cancelar la reserva de forma asíncrona.
-     */
-    private void ejecutarTareaCancelacion(Long reservationId) {
-        Task<Void> cancelTask = new Task<>() {
+    private void ejecutarTareaCancelacion(final Long reservationId) {
+        final Task<Void> cancelTask = new Task<>() {
             @Override
-            protected Void call() throws Exception {
+            protected Void call() throws ApiException {
                 ApiClient.getInstance().patch("/reservations/" + reservationId + "/cancel");
                 return null;
             }
         };
 
         cancelTask.setOnSucceeded(e -> {
-            AlertHelper.showInfo("Éxito", "Reserva cancelada correctamente.");
-            cargarReservas();
+            AlertHelper.showInfo("Éxito", "La reserva ha sido cancelada correctamente.");
+            cargarReservas(); // Refrescar los datos tras la cancelación
         });
 
-        cancelTask.setOnFailed(e -> AlertHelper.showError("Error", cancelTask.getException().getMessage()));
+        cancelTask.setOnFailed(e -> {
+            final Throwable ex = cancelTask.getException();
+            if (ex instanceof ApiException apiEx) {
+                AlertHelper.showError("No se pudo cancelar", apiEx.getMessage());
+            } else {
+                AlertHelper.showError("Error de Sistema", "Ocurrió un fallo inesperado al cancelar la reserva.");
+            }
+        });
 
-        new Thread(cancelTask).start();
+        final Thread thread = new Thread(cancelTask);
+        thread.setDaemon(true);
+        thread.start();
     }
 
-    /**
-     * Carga todas las reservas del cliente y actualiza las tablas y KPIs.
-     */
     private void cargarReservas() {
-        Long clientId = SessionManager.getInstance().getUserId();
+        final Long clientId = SessionManager.getInstance().getUserId();
 
-        Task<List<AppDTO.ReservationResponse>> loadTask = new Task<>() {
+        final Task<List<AppDTO.ReservationResponse>> loadTask = new Task<>() {
             @Override
-            protected List<AppDTO.ReservationResponse> call() throws Exception {
+            protected List<AppDTO.ReservationResponse> call() throws ApiException {
                 return ApiClient.getInstance().getList("/reservations/client/" + clientId, AppDTO.ReservationResponse.class);
             }
         };
 
+        // setOnSucceeded se ejecuta de forma segura en el JavaFX Application Thread
         loadTask.setOnSucceeded(e -> procesarDatosReservas(loadTask.getValue()));
-        loadTask.setOnFailed(e -> fechaHoyLabel.setText("Error al cargar: " + loadTask.getException().getMessage()));
+        
+        loadTask.setOnFailed(e -> {
+            final Throwable ex = loadTask.getException();
+            if (ex instanceof ApiException apiEx) {
+                fechaHoyLabel.setText("Error de red al cargar las reservas.");
+                AlertHelper.showError("Error de Conexión", apiEx.getMessage());
+            } else {
+                fechaHoyLabel.setText("Fallo crítico al acceder a los datos.");
+            }
+        });
 
-        new Thread(loadTask).start();
+        final Thread thread = new Thread(loadTask);
+        thread.setDaemon(true);
+        thread.start();
     }
 
-    /**
-     * Clasifica las reservas en próximas e historial y calcula los indicadores.
-     */
-    private void procesarDatosReservas(List<AppDTO.ReservationResponse> todas) {
-        LocalDate hoy = LocalDate.now();
+    private void procesarDatosReservas(final List<AppDTO.ReservationResponse> todas) {
+        final LocalDate hoy = LocalDate.now();
 
-        List<AppDTO.ReservationResponse> proximas = todas.stream()
+        final List<AppDTO.ReservationResponse> proximas = todas.stream()
                 .filter(r -> r.reservationDate != null && !r.reservationDate.isBefore(hoy)
                         && !"CANCELLED".equals(r.status) && !"COMPLETED".equals(r.status))
                 .collect(Collectors.toList());
 
-        List<AppDTO.ReservationResponse> historial = todas.stream()
+        final List<AppDTO.ReservationResponse> historial = todas.stream()
                 .filter(r -> r.reservationDate != null && (r.reservationDate.isBefore(hoy)
                         || "CANCELLED".equals(r.status) || "COMPLETED".equals(r.status)))
                 .collect(Collectors.toList());
 
-        long semana = proximas.stream().filter(r -> !r.reservationDate.isAfter(hoy.plusDays(6))).count();
-        long hoyCount = proximas.stream().filter(r -> r.reservationDate.equals(hoy)).count();
-        long realizadas = todas.stream().filter(r -> "COMPLETED".equals(r.status)).count();
+        final long semana = proximas.stream().filter(r -> !r.reservationDate.isAfter(hoy.plusDays(6))).count();
+        final long hoyCount = proximas.stream().filter(r -> r.reservationDate.equals(hoy)).count();
+        final long realizadas = todas.stream().filter(r -> "COMPLETED".equals(r.status)).count();
 
         proximasTable.getItems().setAll(proximas);
         historialTable.getItems().setAll(historial);
@@ -235,23 +230,45 @@ public class ClientDashboard implements Initializable {
         kpiRealizadas.setText(String.valueOf(realizadas));
     }
 
-    // ── Navegación ───────────────────────────────────────────────
+    // ── Navegación Semántica Desacoplada ───────────────────────
 
-    @FXML private void goToCalendar() { navigateTo("/com/hambooking/frontend/fxml/calendar.fxml", "HamBooking - Nueva Reserva"); }
-    @FXML private void goToReservations() { historialTable.requestFocus(); historialTable.scrollTo(0); }
-    @FXML private void goToProfile() { navigateTo("/com/hambooking/frontend/fxml/profile.fxml", "HamBooking - Mi Perfil"); }
-    @FXML private void goToNotifications() { navigateTo("/com/hambooking/frontend/fxml/notifications.fxml", "HamBooking - Notificaciones"); }
+    @FXML private void goToCalendar() { navegarSemantico("Calendario", () -> ViewManager.getInstance().showCalendar()); }
+    
+    @FXML private void goToReservations() { 
+        historialTable.requestFocus(); 
+        historialTable.scrollTo(0); 
+    }
+    
+    @FXML private void goToProfile() { navegarSemantico("Perfil", () -> ViewManager.getInstance().showProfile()); }
+    
+    @FXML private void goToNotifications() { navegarSemantico("Notificaciones", () -> ViewManager.getInstance().showNotifications()); }
 
     @FXML private void handleLogout() {
         SessionManager.getInstance().clear();
-        navigateTo("/com/hambooking/frontend/fxml/login.fxml", "HamBooking - Iniciar sesión");
+        navegarSemantico("Login", () -> ViewManager.getInstance().showLogin());
     }
 
-    // ── Utilidades ───────────────────────────────────────────────
+    /** Interfaz funcional interna para simplificar los bloques try/catch de navegación. */
+    @FunctionalInterface
+    private interface Navegador {
+        void navegar() throws IOException;
+    }
 
-    /** Traduce el estado técnico de la reserva a un término amigable para el usuario. */
-    private String traducirEstado(String status) {
-        if (status == null) return "";
+    /** Metodo auxiliar para envolver las llamadas a ViewManager de forma limpia. */
+    private void navegarSemantico(final String contexto, final Navegador runnable) {
+        try {
+            runnable.navegar();
+        } catch (IOException e) {
+            AlertHelper.showError("Error de Redirección", "No se pudo acceder a la vista: " + contexto);
+        }
+    }
+
+    // ── Utilidades de Presentación ───────────────────────────────
+
+    private String traducirEstado(final String status) {
+        if (status == null) {
+            return "";
+        }
         return switch (status) {
             case "PENDING"   -> "Pendiente";
             case "CONFIRMED" -> "Confirmada";
@@ -261,17 +278,7 @@ public class ClientDashboard implements Initializable {
         };
     }
 
-    /** Formatea la fecha para su visualización. */
-    private String formatFecha(LocalDate date) {
+    private String formatFecha(final LocalDate date) {
         return date != null ? date.format(FMT_FECHA) : "";
-    }
-
-    /** Método centralizado para la navegación a través del ViewManager. */
-    private void navigateTo(String fxmlPath, String title) {
-        try {
-            ViewManager.getInstance().navigateTo(fxmlPath, title);
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
     }
 }
