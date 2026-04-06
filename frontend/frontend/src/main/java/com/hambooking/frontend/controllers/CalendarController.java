@@ -3,6 +3,8 @@ package com.hambooking.frontend.controllers;
 import com.hambooking.frontend.SessionManager;
 import com.hambooking.frontend.dto.AppDTO;
 import com.hambooking.frontend.service.ApiClient;
+import com.hambooking.frontend.service.ApiException;
+import com.hambooking.frontend.util.AlertHelper;
 import com.hambooking.frontend.util.ViewManager;
 import javafx.application.Platform;
 import javafx.concurrent.Task;
@@ -28,44 +30,29 @@ import java.util.List;
 import java.util.ResourceBundle;
 
 /**
- * Controlador para la vista del calendario de disponibilidad.
- * Permite a los clientes consultar los huecos libres de los cortadores activos para un servicio
- * y fecha determinados, generando una cuadrícula interactiva para iniciar el proceso de reserva.
+ * Controlador Senior para el Calendario de Disponibilidad.
+ * Gestiona consultas asíncronas concurrentes, renderizado dinámico de la cuadrícula
+ * y enrutamiento seguro hacia la confirmación de reservas.
  */
-public class CalendarController implements Initializable {
+public final class CalendarController implements Initializable {
 
-    /** Selector desplegable para el tipo de servicio. */
     @FXML private ComboBox<String> servicioCombo;
-    /** Selector de fecha para la consulta de disponibilidad. */
     @FXML private DatePicker fechaPicker;
-    /** Cuadrícula donde se renderizan dinámicamente los slots de tiempo y cortadores. */
     @FXML private GridPane calendarGrid;
-    /** Etiqueta que detalla información del servicio seleccionado (precio, duración). */
     @FXML private Label servicioInfoLabel;
-    /** Etiqueta para mensajes de estado, advertencias o errores en la búsqueda. */
     @FXML private Label legendInfoLabel;
-    /** Nombre del usuario actual en el panel lateral. */
     @FXML private Label sidebarUserName;
-    /** Rol del usuario actual en el panel lateral. */
     @FXML private Label sidebarUserRole;
 
-    /** Lista de servicios disponibles recuperados de la API. */
     private List<AppDTO.ServiceResponse> servicios;
-    /** Lista de cortadores activos recuperados de la API. */
     private List<AppDTO.CarverResponse> cortadores;
 
-    /** Hora de inicio de la jornada laboral (10:00). */
     private static final LocalTime HORA_INICIO = LocalTime.of(10, 0);
-    /** Hora de fin de la jornada laboral (18:00). */
-    private static final LocalTime HORA_FIN    = LocalTime.of(18, 0);
+    private static final LocalTime HORA_FIN = LocalTime.of(18, 0);
 
-    /**
-     * Inicializa la interfaz configurando el usuario, las restricciones de fecha
-     * y disparando la carga inicial de datos desde la API.
-     */
     @Override
-    public void initialize(URL location, ResourceBundle resources) {
-        SessionManager session = SessionManager.getInstance();
+    public void initialize(final URL location, final ResourceBundle resources) {
+        final SessionManager session = SessionManager.getInstance();
         sidebarUserName.setText(session.getFullName());
         sidebarUserRole.setText(session.isAdmin() ? "Administrador" : "Cliente");
 
@@ -74,33 +61,36 @@ public class CalendarController implements Initializable {
     }
 
     /**
-     * Configura el DatePicker para impedir la selección de fechas pasadas o fines de semana.
+     * Limita el DatePicker para bloquear fechas pasadas y fines de semana.
      */
     private void configurarRestriccionesFecha() {
         fechaPicker.setValue(LocalDate.now().plusDays(1));
         fechaPicker.setDayCellFactory(picker -> new DateCell() {
             @Override
-            public void updateItem(LocalDate date, boolean empty) {
+            public void updateItem(final LocalDate date, final boolean empty) {
                 super.updateItem(date, empty);
-                DayOfWeek day = date.getDayOfWeek();
-                boolean deshabilitado = day == DayOfWeek.SATURDAY
+                final DayOfWeek day = date.getDayOfWeek();
+                final boolean deshabilitado = day == DayOfWeek.SATURDAY
                         || day == DayOfWeek.SUNDAY
                         || date.isBefore(LocalDate.now().plusDays(1));
+                
                 setDisable(deshabilitado);
-                if (deshabilitado) setStyle("-fx-background-color: #F2F3F4;");
+                if (deshabilitado) {
+                    setStyle("-fx-background-color: #F2F3F4;");
+                }
             }
         });
     }
 
     /**
-     * Recupera la lista de servicios y cortadores activos de forma asíncrona.
+     * Carga el catálogo de servicios y cortadores activos en segundo plano.
      */
     private void cargarDatosIniciales() {
-        servicioInfoLabel.setText("Cargando servicios...");
+        servicioInfoLabel.setText("Cargando catálogo...");
 
-        Task<Void> initTask = new Task<>() {
+        final Task<Void> initTask = new Task<>() {
             @Override
-            protected Void call() throws Exception {
+            protected Void call() throws ApiException {
                 servicios = ApiClient.getInstance().getList("/services", AppDTO.ServiceResponse.class);
                 cortadores = ApiClient.getInstance().getList("/carvers/active", AppDTO.CarverResponse.class);
                 return null;
@@ -109,22 +99,23 @@ public class CalendarController implements Initializable {
 
         initTask.setOnSucceeded(e -> {
             poblarComboServicios();
-            servicioInfoLabel.setText("Servicios cargados.");
+            servicioInfoLabel.setText("Catálogo cargado correctamente.");
         });
 
         initTask.setOnFailed(e -> {
-            servicioInfoLabel.setText("Error al cargar datos: " + initTask.getException().getMessage());
+            final Throwable ex = initTask.getException();
+            servicioInfoLabel.setText("Error de red: " + ex.getMessage());
+            AlertHelper.showError("Error de Carga", "No se pudo conectar con el servidor para obtener los datos.");
         });
 
-        new Thread(initTask).start();
+        final Thread thread = new Thread(initTask);
+        thread.setDaemon(true);
+        thread.start();
     }
 
-    /**
-     * Rellena el ComboBox con los nombres de los servicios recuperados.
-     */
     private void poblarComboServicios() {
         servicioCombo.getItems().clear();
-        for (AppDTO.ServiceResponse s : servicios) {
+        for (final AppDTO.ServiceResponse s : servicios) {
             servicioCombo.getItems().add(s.getDisplayName());
         }
         if (!servicioCombo.getItems().isEmpty()) {
@@ -135,71 +126,81 @@ public class CalendarController implements Initializable {
     }
 
     /**
-     * Gestiona la búsqueda de disponibilidad para la fecha y servicio seleccionados.
-     * Limpia la cuadrícula y lanza peticiones paralelas para cada cortador.
+     * Inicia la búsqueda de huecos lanzando peticiones concurrentes por cada cortador.
      */
     @FXML
     private void handleBuscarDisponibilidad() {
-        LocalDate fecha = fechaPicker.getValue();
-        int idx = servicioCombo.getSelectionModel().getSelectedIndex();
+        final LocalDate fecha = fechaPicker.getValue();
+        final int idx = servicioCombo.getSelectionModel().getSelectedIndex();
 
-        if (fecha == null || servicios == null || cortadores == null || idx < 0) return;
+        if (fecha == null || servicios == null || cortadores == null || idx < 0) {
+            return;
+        }
 
-        AppDTO.ServiceResponse servicio = servicios.get(idx);
+        final AppDTO.ServiceResponse servicio = servicios.get(idx);
 
         if (cortadores.isEmpty()) {
-            legendInfoLabel.setText("⚠ No hay cortadores activos disponibles.");
+            legendInfoLabel.setText("⚠ No hay cortadores activos en el sistema.");
             return;
         }
 
         limpiarCuadricula();
         prepararCabecerasCuadricula(servicio);
 
+        // Lanzar consultas concurrentes por cada cortador para máxima velocidad
         for (int col = 0; col < cortadores.size(); col++) {
             consultarDisponibilidadCortador(col, cortadores.get(col), servicio, fecha);
         }
     }
 
     /**
-     * Realiza la consulta asíncrona de slots libres para un cortador específico.
-     * 
-     * @param col      Índice de la columna en la cuadrícula.
-     * @param carver   Datos del cortador.
-     * @param servicio Servicio a prestar.
-     * @param fecha    Fecha de la consulta.
+     * Consulta la API asíncronamente para obtener las horas ocupadas de un cortador.
      */
-    private void consultarDisponibilidadCortador(int col, AppDTO.CarverResponse carver, 
-                                                 AppDTO.ServiceResponse servicio, LocalDate fecha) {
+    private void consultarDisponibilidadCortador(final int col, final AppDTO.CarverResponse carver, 
+                                                 final AppDTO.ServiceResponse servicio, final LocalDate fecha) {
         
-        Task<List<LocalTime>> task = new Task<>() {
+        final Task<List<LocalTime>> task = new Task<>() {
             @Override
-            protected List<LocalTime> call() throws Exception {
-                String endpoint = "/availability?carverId=" + carver.id
+            protected List<LocalTime> call() throws ApiException {
+                final String endpoint = "/availability?carverId=" + carver.id
                         + "&date=" + fecha
                         + "&serviceId=" + servicio.id;
                 return ApiClient.getInstance().getList(endpoint, LocalTime.class);
             }
         };
 
-        task.setOnSucceeded(e -> renderColumnaSlots(col, carver, servicio, task.getValue(), fecha));
-        task.setOnFailed(e -> legendInfoLabel.setText("Error en cortador " + carver.firstName + ": " + task.getException().getMessage()));
+        task.setOnSucceeded(e -> {
+            final List<LocalTime> horasOcupadas = task.getValue();
+            // Asegurar que la manipulación de nodos visuales se hace en el hilo de JavaFX
+            Platform.runLater(() -> renderColumnaSlots(col, carver, servicio, horasOcupadas, fecha));
+        });
 
-        new Thread(task).start();
+        task.setOnFailed(e -> {
+            Platform.runLater(() -> legendInfoLabel.setText(
+                    "Error al cargar cortador " + carver.firstName + ": " + task.getException().getMessage()));
+        });
+
+        final Thread thread = new Thread(task);
+        thread.setDaemon(true);
+        thread.start();
     }
 
     /**
-     * Renderiza los botones de tiempo para un cortador determinado.
+     * Renderiza dinámicamente los botones (slots) para la columna de un cortador.
      */
-    private void renderColumnaSlots(int col, AppDTO.CarverResponse carver, AppDTO.ServiceResponse servicio,
-                                    List<LocalTime> slotsLibres, LocalDate fecha) {
+    private void renderColumnaSlots(final int col, final AppDTO.CarverResponse carver, final AppDTO.ServiceResponse servicio,
+                                    final List<LocalTime> horasOcupadas, final LocalDate fecha) {
         LocalTime slot = HORA_INICIO;
         int row = 1;
+        
         while (slot.isBefore(HORA_FIN)) {
-            boolean suficiente = !slot.plusMinutes(servicio.durationMinutes).isAfter(HORA_FIN);
-            boolean libre      = slotsLibres.contains(slot);
+            final boolean suficiente = !slot.plusMinutes(servicio.durationMinutes).isAfter(HORA_FIN);
+            // La API nos devuelve las horas que ESTÁN OCUPADAS.
+            // Por tanto, está libre si NO está en la lista de horas devueltas.
+            final boolean libre = !horasOcupadas.contains(slot);
 
             final LocalTime slotFinal = slot;
-            Button btn = buildSlotButton(suficiente, libre, () ->
+            final Button btn = buildSlotButton(suficiente, libre, () ->
                     handleSlotSeleccionado(slotFinal, slotFinal.plusMinutes(servicio.durationMinutes), carver, servicio, fecha)
             );
             calendarGrid.add(btn, col + 1, row);
@@ -209,27 +210,21 @@ public class CalendarController implements Initializable {
         }
     }
 
-    /**
-     * Prepara las cabeceras de cortadores y las etiquetas laterales de hora en la cuadrícula.
-     */
-    private void prepararCabecerasCuadricula(AppDTO.ServiceResponse servicio) {
+    private void prepararCabecerasCuadricula(final AppDTO.ServiceResponse servicio) {
         legendInfoLabel.setText("Cargando disponibilidad...");
 
-        // Esquina superior izquierda vacía
-        Label emptyHeader = new Label();
+        final Label emptyHeader = new Label();
         emptyHeader.setPrefWidth(55);
         calendarGrid.add(emptyHeader, 0, 0);
 
-        // Cabeceras de cortadores
         for (int col = 0; col < cortadores.size(); col++) {
             calendarGrid.add(buildCarverHeader(cortadores.get(col)), col + 1, 0);
         }
 
-        // Etiquetas de hora
         LocalTime h = HORA_INICIO;
         int r = 1;
         while (h.isBefore(HORA_FIN)) {
-            Label horaLabel = new Label(h.toString());
+            final Label horaLabel = new Label(h.toString());
             horaLabel.getStyleClass().add("calendar-hour-label");
             horaLabel.setPrefWidth(55);
             calendarGrid.add(horaLabel, 0, r);
@@ -237,12 +232,9 @@ public class CalendarController implements Initializable {
             r++;
         }
 
-        legendInfoLabel.setText("Servicio: " + servicio.name + " | " + servicio.getPrecioStr());
+        legendInfoLabel.setText("Servicio seleccionado: " + servicio.name + " | " + servicio.getPrecioStr());
     }
 
-    /**
-     * Limpia todos los elementos y restricciones de la cuadrícula.
-     */
     private void limpiarCuadricula() {
         calendarGrid.getChildren().clear();
         calendarGrid.getColumnConstraints().clear();
@@ -250,64 +242,76 @@ public class CalendarController implements Initializable {
     }
 
     /**
-     * Gestiona la selección de un hueco libre navegando al formulario de reserva.
+     * Intercepta la selección de un slot libre e inyecta los datos en el controlador de reservas.
      */
-    private void handleSlotSeleccionado(LocalTime horaInicio, LocalTime horaFin,
-                                        AppDTO.CarverResponse carver, AppDTO.ServiceResponse servicio,
-                                        LocalDate fecha) {
+    private void handleSlotSeleccionado(final LocalTime horaInicio, final LocalTime horaFin,
+                                        final AppDTO.CarverResponse carver, final AppDTO.ServiceResponse servicio,
+                                        final LocalDate fecha) {
         try {
-            FXMLLoader loader = new FXMLLoader(getClass().getResource("/com/hambooking/frontend/fxml/booking-form.fxml"));
-            Parent root = loader.load();
+            final FXMLLoader loader = new FXMLLoader(getClass().getResource("/com/hambooking/frontend/fxml/booking-form.fxml"));
+            final Parent root = loader.load();
 
-            BookingController ctrl = loader.getController();
+            final BookingController ctrl = loader.getController();
             ctrl.initData(servicio.name, servicio.getPrecioStr(), carver.getDisplayName(),
                     carver.specialty != null ? carver.specialty : "General",
                     fecha, horaInicio, horaFin, carver.id, servicio.id);
 
-            Stage stage = ViewManager.getInstance().getMainStage();
+            final Stage stage = ViewManager.getInstance().getMainStage();
             stage.getScene().setRoot(root);
             stage.setTitle("HamBooking - Confirmar Reserva");
 
         } catch (IOException e) {
-            legendInfoLabel.setText("Error al abrir el formulario.");
+            AlertHelper.showError("Error Crítico", "No se pudo inicializar el formulario de reserva.");
+            legendInfoLabel.setText("Fallo interno del sistema (UI).");
         }
     }
 
-    // ── Navegación ───────────────────────────────────────────────
+    // ── Navegación Semántica Desacoplada ───────────────────────
 
-    /** Navega al panel principal del cliente. */
-    @FXML private void goToDashboard() { navigateTo("/com/hambooking/frontend/fxml/client-dashboard.fxml", "HamBooking"); }
-    /** Navega a la lista de reservas del cliente. */
-    @FXML private void goToReservations() { navigateTo("/com/hambooking/frontend/fxml/client-dashboard.fxml", "HamBooking - Mis Reservas"); }
-    /** Navega al perfil del usuario. */
-    @FXML private void goToProfile() { navigateTo("/com/hambooking/frontend/fxml/profile.fxml", "HamBooking - Mi Perfil"); }
-    /** Navega a la vista de notificaciones. */
-    @FXML private void goToNotifications() { navigateTo("/com/hambooking/frontend/fxml/notifications.fxml", "HamBooking - Notificaciones"); }
+    @FXML private void goToDashboard() { navegarSemantico("Dashboard", () -> ViewManager.getInstance().showMainDashboard()); }
+    @FXML private void goToReservations() { navegarSemantico("Reservas", () -> ViewManager.getInstance().showMainDashboard()); }
+    @FXML private void goToProfile() { navegarSemantico("Perfil", () -> ViewManager.getInstance().showProfile()); }
+    @FXML private void goToNotifications() { navegarSemantico("Notificaciones", () -> ViewManager.getInstance().showNotifications()); }
     
-    /** Cierra la sesión y vuelve al login. */
     @FXML private void handleLogout() {
         SessionManager.getInstance().clear();
-        navigateTo("/com/hambooking/frontend/fxml/login.fxml", "HamBooking - Iniciar sesión");
+        navegarSemantico("Login", () -> ViewManager.getInstance().showLogin());
+    }
+
+    /** Metodo auxiliar para envolver las llamadas a ViewManager de forma limpia. */
+    private void navegarSemantico(final String contexto, final Navegador runnable) {
+        try {
+            runnable.navegar();
+        } catch (IOException e) {
+            AlertHelper.showError("Error de Redirección", "No se pudo acceder a la vista: " + contexto);
+        }
+    }
+
+    /** Interfaz funcional interna para simplificar los bloques try/catch de navegación. */
+    @FunctionalInterface
+    private interface Navegador {
+        void navegar() throws IOException;
     }
 
     // ── Utilidades de Construcción UI ────────────────────────────
 
-    /** Crea el contenedor visual para la cabecera de un cortador. */
-    private VBox buildCarverHeader(AppDTO.CarverResponse carver) {
-        VBox box = new VBox(2);
+    private VBox buildCarverHeader(final AppDTO.CarverResponse carver) {
+        final VBox box = new VBox(2);
         box.getStyleClass().add("calendar-carver-header");
         box.setPrefWidth(140);
-        Label nameLabel = new Label(carver.getDisplayName());
+        
+        final Label nameLabel = new Label(carver.getDisplayName());
         nameLabel.setStyle("-fx-font-weight:bold; -fx-font-size:12px;");
-        Label subLabel = new Label(carver.specialty != null ? carver.specialty : "General");
+        
+        final Label subLabel = new Label(carver.specialty != null ? carver.specialty : "General");
         subLabel.setStyle("-fx-font-size:10px; -fx-text-fill:#9A7B6A;");
+        
         box.getChildren().addAll(nameLabel, subLabel);
         return box;
     }
 
-    /** Crea un botón para un slot de tiempo con el estilo adecuado según su estado. */
-    private Button buildSlotButton(boolean suficiente, boolean libre, Runnable onClick) {
-        Button btn = new Button();
+    private Button buildSlotButton(final boolean suficiente, final boolean libre, final Runnable onClick) {
+        final Button btn = new Button();
         btn.setPrefWidth(140);
         btn.setPrefHeight(30);
 
@@ -327,21 +331,11 @@ public class CalendarController implements Initializable {
         return btn;
     }
 
-    /** Actualiza la etiqueta informativa del servicio seleccionado. */
     private void actualizarInfoServicio() {
-        int idx = servicioCombo.getSelectionModel().getSelectedIndex();
+        final int idx = servicioCombo.getSelectionModel().getSelectedIndex();
         if (servicios != null && idx >= 0 && idx < servicios.size()) {
-            AppDTO.ServiceResponse s = servicios.get(idx);
+            final AppDTO.ServiceResponse s = servicios.get(idx);
             servicioInfoLabel.setText(s.name + " | " + s.getPrecioStr());
-        }
-    }
-
-    /** Método centralizado para la navegación a través del ViewManager. */
-    private void navigateTo(String fxmlPath, String title) {
-        try {
-            ViewManager.getInstance().navigateTo(fxmlPath, title);
-        } catch (IOException e) {
-            e.printStackTrace();
         }
     }
 }
