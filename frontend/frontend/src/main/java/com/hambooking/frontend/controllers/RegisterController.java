@@ -3,12 +3,14 @@ package com.hambooking.frontend.controllers;
 import com.hambooking.frontend.SessionManager;
 import com.hambooking.frontend.dto.AuthDTO;
 import com.hambooking.frontend.service.ApiClient;
+import com.hambooking.frontend.service.ApiException;
+import com.hambooking.frontend.util.AlertHelper;
 import com.hambooking.frontend.util.ViewManager;
-import javafx.application.Platform;
 import javafx.concurrent.Task;
 import javafx.fxml.FXML;
 import javafx.fxml.Initializable;
 import javafx.scene.control.Button;
+import javafx.scene.control.Control;
 import javafx.scene.control.Label;
 import javafx.scene.control.PasswordField;
 import javafx.scene.control.TextField;
@@ -18,145 +20,155 @@ import java.net.URL;
 import java.util.ResourceBundle;
 
 /**
- * Controlador para la vista de registro de usuarios.
- * Gestiona la creación de nuevas cuentas de cliente, validando los datos personales,
- * de contacto y credenciales de seguridad antes de la comunicación con la API.
+ * Controlador Senior para la vista de registro de usuarios.
+ * Gestiona la creación de cuentas de cliente con validación exhaustiva,
+ * feedback visual avanzado (UX) y navegación semántica.
  */
-public class RegisterController implements Initializable {
+public final class RegisterController implements Initializable {
 
-    /** Campo de entrada para el nombre del usuario. */
     @FXML private TextField firstNameField;
-
-    /** Campo de entrada para los apellidos del usuario. */
     @FXML private TextField lastNameField;
-
-    /** Campo de entrada para el DNI (Documento Nacional de Identidad). */
     @FXML private TextField dniField;
-
-    /** Campo de entrada para el número de teléfono. */
     @FXML private TextField phoneField;
-
-    /** Campo de entrada para el correo electrónico. */
     @FXML private TextField emailField;
-
-    /** Campo para introducir la contraseña deseada. */
     @FXML private PasswordField passwordField;
-
-    /** Campo para confirmar la contraseña introducida. */
     @FXML private PasswordField confirmPasswordField;
-
-    /** Etiqueta para la visualización de mensajes de error de validación o del servidor. */
     @FXML private Label errorLabel;
-
-    /** Botón para ejecutar la acción de registro. */
     @FXML private Button registerBtn;
 
-    /** Expresión regular para validar el formato del DNI (8 dígitos y una letra). */
-    private static final String REGEX_DNI   = "^[0-9]{8}[A-Za-z]$";
-    /** Expresión regular para validar el número de teléfono (9 dígitos). */
+    private static final String REGEX_DNI = "^[0-9]{8}[A-Za-z]$";
     private static final String REGEX_PHONE = "^[0-9]{9}$";
-    /** Expresión regular estándar para la validación básica de correos electrónicos. */
     private static final String REGEX_EMAIL = "^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$";
+    private static final String ERROR_CLASS = "error-field";
 
-    /**
-     * Inicializa el controlador ocultando los errores y configurando los listeners
-     * de limpieza automática de mensajes de error al modificar los campos.
-     */
     @Override
-    public void initialize(URL location, ResourceBundle resources) {
-        errorLabel.setVisible(false);
-        errorLabel.setManaged(false);
-
-        // Añadir listeners para limpiar el error en cuanto el usuario empiece a corregir
-        firstNameField.textProperty().addListener((o, old, nv)       -> clearError());
-        lastNameField.textProperty().addListener((o, old, nv)        -> clearError());
-        dniField.textProperty().addListener((o, old, nv)             -> clearError());
-        phoneField.textProperty().addListener((o, old, nv)           -> clearError());
-        emailField.textProperty().addListener((o, old, nv)           -> clearError());
-        passwordField.textProperty().addListener((o, old, nv)        -> clearError());
-        confirmPasswordField.textProperty().addListener((o, old, nv) -> clearError());
+    public void initialize(final URL location, final ResourceBundle resources) {
+        ocultarError();
+        configurarListenersLimpieza();
     }
 
     /**
-     * Gestiona la lógica de registro al pulsar el botón correspondiente.
-     * Realiza las validaciones de negocio y lanza la tarea asíncrona de creación de cuenta.
+     * Configura listeners para limpiar dinámicamente el estado de error 
+     * (texto y bordes rojos) en cuanto el usuario empiece a interactuar.
+     */
+    private void configurarListenersLimpieza() {
+        limpiarErrorAlEscribir(firstNameField);
+        limpiarErrorAlEscribir(lastNameField);
+        limpiarErrorAlEscribir(dniField);
+        limpiarErrorAlEscribir(phoneField);
+        limpiarErrorAlEscribir(emailField);
+        limpiarErrorAlEscribir(passwordField);
+        limpiarErrorAlEscribir(confirmPasswordField);
+    }
+
+    private void limpiarErrorAlEscribir(final Control control) {
+        if (control instanceof TextField) {
+            ((TextField) control).textProperty().addListener((obs, oldV, newV) -> {
+                ocultarError();
+                control.getStyleClass().remove(ERROR_CLASS);
+            });
+        }
+    }
+
+    /**
+     * Gestiona la acción de registro. Valida los datos localmente antes
+     * de iniciar la comunicación asíncrona con el servidor.
      */
     @FXML
     private void handleRegister() {
-        if (!validarFormulario()) return;
+        // 1. Limpiamos estilos previos antes de la nueva validación
+        limpiarEstilosErrorGlobal();
 
-        configurarEstadoCargando(true);
+        // 2. Validación de negocio y UX
+        if (!validarFormulario()) {
+            return;
+        }
 
-        Task<AuthDTO.LoginResponse> registerTask = crearTareaRegistro();
+        // 3. Bloqueo de UI y ejecución asíncrona (Task)
+        setLoadingState(true);
+        final Task<AuthDTO.LoginResponse> registerTask = createRegisterTask();
 
         registerTask.setOnSucceeded(event -> {
-            procesarExitoRegistro(registerTask.getValue());
+            final AuthDTO.LoginResponse response = registerTask.getValue();
+            SessionManager.getInstance().setSession(response);
+            navigateToDashboard();
         });
 
         registerTask.setOnFailed(event -> {
-            procesarFalloRegistro(registerTask.getException());
+            setLoadingState(false);
+            gestionarFalloRegistro(registerTask.getException());
         });
 
-        Thread thread = new Thread(registerTask);
+        final Thread thread = new Thread(registerTask);
         thread.setDaemon(true);
         thread.start();
     }
 
     /**
-     * Valida de forma integral todos los campos del formulario de registro.
-     * 
-     * @return true si todos los campos cumplen con los criterios de validación.
+     * Realiza una validación secuencial. Al usar 'return false' inmediato evitamos
+     * sobrecargar al usuario con múltiples mensajes a la vez, guiándole paso a paso,
+     * pero destacando el campo exacto que requiere atención.
      */
     private boolean validarFormulario() {
-        String firstName = firstNameField.getText().trim();
-        String lastName  = lastNameField.getText().trim();
-        String dni       = dniField.getText().trim();
-        String phone     = phoneField.getText().trim();
-        String email     = emailField.getText().trim();
-        String pass      = passwordField.getText();
-        String confirm   = confirmPasswordField.getText();
-
-        if (firstName.isEmpty() || lastName.isEmpty() || dni.isEmpty()
-                || phone.isEmpty() || email.isEmpty() || pass.isEmpty() || confirm.isEmpty()) {
-            showError("Todos los campos son obligatorios.");
-            return false;
+        if (firstNameField.getText().trim().isEmpty()) {
+            return fallarValidacion(firstNameField, "El nombre es obligatorio.");
         }
-        if (!dni.matches(REGEX_DNI)) {
-            showError("El DNI debe tener el formato: 12345678A.");
-            return false;
+        if (lastNameField.getText().trim().isEmpty()) {
+            return fallarValidacion(lastNameField, "Los apellidos son obligatorios.");
         }
-        if (!phone.matches(REGEX_PHONE)) {
-            showError("El teléfono debe tener exactamente 9 dígitos.");
-            return false;
+        if (!dniField.getText().trim().matches(REGEX_DNI)) {
+            return fallarValidacion(dniField, "Formato de DNI no válido (ej: 12345678A).");
         }
-        if (!email.matches(REGEX_EMAIL)) {
-            showError("El formato del email no es válido.");
-            return false;
+        if (!phoneField.getText().trim().matches(REGEX_PHONE)) {
+            return fallarValidacion(phoneField, "El teléfono debe tener 9 dígitos numéricos.");
         }
-        if (pass.length() < 8) {
-            showError("La contraseña debe tener al menos 8 caracteres.");
-            return false;
+        if (!emailField.getText().trim().matches(REGEX_EMAIL)) {
+            return fallarValidacion(emailField, "Introduce un correo electrónico válido.");
         }
         
-        boolean tieneMayuscula = pass.chars().anyMatch(Character::isUpperCase);
-        boolean tieneNumero    = pass.chars().anyMatch(Character::isDigit);
-        if (!tieneMayuscula || !tieneNumero) {
-            showError("La contraseña debe incluir al menos una mayúscula y un número.");
-            return false;
+        final String pass = passwordField.getText();
+        if (pass.length() < 8) {
+            return fallarValidacion(passwordField, "La contraseña debe tener al menos 8 caracteres.");
         }
-        if (!pass.equals(confirm)) {
-            showError("Las contraseñas no coinciden.");
-            return false;
+        
+        final boolean tieneMayuscula = pass.chars().anyMatch(Character::isUpperCase);
+        final boolean tieneNumero = pass.chars().anyMatch(Character::isDigit);
+        
+        if (!tieneMayuscula || !tieneNumero) {
+            return fallarValidacion(passwordField, "La contraseña debe tener al menos una mayúscula y un número.");
+        }
+        
+        if (!pass.equals(confirmPasswordField.getText())) {
+            return fallarValidacion(confirmPasswordField, "Las contraseñas no coinciden.");
         }
         
         return true;
     }
 
     /**
-     * Crea la tarea asíncrona para enviar los datos de registro a la API.
+     * Aplica el feedback visual negativo a un campo específico y muestra el mensaje.
      */
-    private Task<AuthDTO.LoginResponse> crearTareaRegistro() {
-        AuthDTO.RegisterRequest request = new AuthDTO.RegisterRequest(
+    private boolean fallarValidacion(final Control campo, final String mensaje) {
+        mostrarError(mensaje);
+        if (!campo.getStyleClass().contains(ERROR_CLASS)) {
+            campo.getStyleClass().add(ERROR_CLASS);
+        }
+        campo.requestFocus(); // Foco automático para mejorar la UX
+        return false;
+    }
+
+    private void limpiarEstilosErrorGlobal() {
+        firstNameField.getStyleClass().remove(ERROR_CLASS);
+        lastNameField.getStyleClass().remove(ERROR_CLASS);
+        dniField.getStyleClass().remove(ERROR_CLASS);
+        phoneField.getStyleClass().remove(ERROR_CLASS);
+        emailField.getStyleClass().remove(ERROR_CLASS);
+        passwordField.getStyleClass().remove(ERROR_CLASS);
+        confirmPasswordField.getStyleClass().remove(ERROR_CLASS);
+    }
+
+    private Task<AuthDTO.LoginResponse> createRegisterTask() {
+        final AuthDTO.RegisterRequest request = new AuthDTO.RegisterRequest(
                 dniField.getText().trim(),
                 firstNameField.getText().trim(),
                 lastNameField.getText().trim(),
@@ -167,72 +179,59 @@ public class RegisterController implements Initializable {
 
         return new Task<>() {
             @Override
-            protected AuthDTO.LoginResponse call() throws Exception {
+            protected AuthDTO.LoginResponse call() throws ApiException {
                 return ApiClient.getInstance().post("/auth/register", request, AuthDTO.LoginResponse.class);
             }
         };
     }
 
-    /**
-     * Gestiona la respuesta satisfactoria del registro, guardando la sesión automática.
-     */
-    private void procesarExitoRegistro(AuthDTO.LoginResponse response) {
-        SessionManager.getInstance().setSession(response);
-
-        navigateTo("/com/hambooking/frontend/fxml/client-dashboard.fxml", "HamBooking - Mi Panel");
+    private void gestionarFalloRegistro(final Throwable ex) {
+        if (ex instanceof ApiException apiEx) {
+            if (apiEx.isConflict()) {
+                // Conflicto típico: el email o DNI ya existen
+                fallarValidacion(emailField, "El DNI o el Email ya se encuentran registrados.");
+                fallarValidacion(dniField, "El DNI o el Email ya se encuentran registrados.");
+            } else if (apiEx.isConnectionError()) {
+                mostrarError("Error de conexión: El servidor no responde.");
+            } else {
+                mostrarError(apiEx.getMessage());
+            }
+        } else {
+            mostrarError("Ocurrió un fallo inesperado durante el registro.");
+        }
     }
 
-    /**
-     * Gestiona los fallos de comunicación o errores de negocio devueltos por la API.
-     */
-    private void procesarFalloRegistro(Throwable exception) {
-        showError(exception.getMessage());
-        configurarEstadoCargando(false);
+    private void navigateToDashboard() {
+        try {
+            ViewManager.getInstance().showMainDashboard();
+        } catch (IOException e) {
+            AlertHelper.showError("Error de Navegación", "Registro completado, pero no se pudo cargar el panel.");
+        }
     }
 
-    /**
-     * Configura el estado visual de los controles durante la espera de respuesta.
-     */
-    private void configurarEstadoCargando(boolean cargando) {
-        registerBtn.setDisable(cargando);
-        registerBtn.setText(cargando ? "Creando cuenta..." : "Crear cuenta");
-    }
-
-    /**
-     * Navega de vuelta a la pantalla de inicio de sesión.
-     */
     @FXML
     private void goToLogin() {
-        navigateTo("/com/hambooking/frontend/fxml/login.fxml", "HamBooking - Iniciar sesión");
+        try {
+            ViewManager.getInstance().showLogin();
+        } catch (IOException e) {
+            AlertHelper.showError("Error", "No se pudo cargar la vista de inicio de sesión.");
+        }
     }
 
-    /**
-     * Muestra un mensaje informativo de error en la vista.
-     */
-    private void showError(String mensaje) {
-        errorLabel.setText(mensaje);
+    private void setLoadingState(final boolean loading) {
+        registerBtn.setDisable(loading);
+        registerBtn.setText(loading ? "Procesando..." : "Crear cuenta");
+    }
+
+    private void mostrarError(final String msg) {
+        errorLabel.setText(msg);
         errorLabel.setVisible(true);
         errorLabel.setManaged(true);
     }
 
-    /**
-     * Elimina cualquier mensaje de error visible.
-     */
-    private void clearError() {
+    private void ocultarError() {
         errorLabel.setVisible(false);
         errorLabel.setManaged(false);
         errorLabel.setText("");
-    }
-
-    /**
-     * Método centralizado para la navegación a través del ViewManager.
-     */
-    private void navigateTo(String fxmlPath, String title) {
-        try {
-            ViewManager.getInstance().navigateTo(fxmlPath, title);
-        } catch (IOException e) {
-            showError("Error al cargar la pantalla: " + e.getMessage());
-            configurarEstadoCargando(false);
-        }
     }
 }
