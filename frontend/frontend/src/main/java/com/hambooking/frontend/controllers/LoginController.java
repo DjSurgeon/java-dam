@@ -112,10 +112,7 @@ public class LoginController implements Initializable {
      * Procesa la respuesta exitosa del servidor guardando la sesión y navegando al dashboard.
      */
     private void procesarExitoLogin(AuthDTO.LoginResponse response) {
-        SessionManager.getInstance().setSession(
-                response.id, response.firstName, response.lastName,
-                response.email, response.role
-        );
+        SessionManager.getInstance().setSession(response);
 
         String destino = "ADMIN".equals(response.role)
                 ? "/com/hambooking/frontend/fxml/admin-dashboard.fxml"

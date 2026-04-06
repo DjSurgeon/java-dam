@@ -1,5 +1,7 @@
 package com.hambooking.frontend;
 
+import com.hambooking.frontend.dto.AuthDTO;
+
 /**
  * Gestor de sesión único (Singleton) para la aplicación HamBooking.
  * Esta clase es responsable de mantener en memoria los datos del usuario autenticado
@@ -117,22 +119,19 @@ public final class SessionManager {
     }
 
     /**
-     * Inicializa los datos de la sesión. Este método debe invocarse únicamente
-     * tras una autenticación exitosa en el servidor.
+     * Inicializa los datos de la sesión a partir de un objeto de respuesta de login.
+     * Este método debe invocarse únicamente tras una autenticación exitosa.
      *
-     * @param userId    ID del usuario.
-     * @param firstName Nombre del usuario.
-     * @param lastName  Apellidos del usuario.
-     * @param email     Email del usuario.
-     * @param role      Rol del usuario.
+     * @param user DTO con la información del usuario autenticado.
      */
-    public void setSession(final Long userId, final String firstName, final String lastName,
-                           final String email, final String role) {
-        this.userId = userId;
-        this.firstName = firstName;
-        this.lastName = lastName;
-        this.email = email;
-        this.role = role;
+    public void setSession(final AuthDTO.LoginResponse user) {
+        if (user != null) {
+            this.userId = user.id;
+            this.firstName = user.firstName;
+            this.lastName = user.lastName;
+            this.email = user.email;
+            this.role = user.role;
+        }
     }
 
     /**

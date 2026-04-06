@@ -177,10 +177,7 @@ public class RegisterController implements Initializable {
      * Gestiona la respuesta satisfactoria del registro, guardando la sesión automática.
      */
     private void procesarExitoRegistro(AuthDTO.LoginResponse response) {
-        SessionManager.getInstance().setSession(
-                response.id, response.firstName, response.lastName,
-                response.email, response.role
-        );
+        SessionManager.getInstance().setSession(response);
 
         navigateTo("/com/hambooking/frontend/fxml/client-dashboard.fxml", "HamBooking - Mi Panel");
     }
