@@ -5,6 +5,7 @@ import com.hambooking.frontend.dto.AppDTO;
 import com.hambooking.frontend.service.ApiClient;
 import com.hambooking.frontend.service.ApiException;
 import com.hambooking.frontend.util.AlertHelper;
+import com.hambooking.frontend.util.ValidationHelper;
 import com.hambooking.frontend.util.ViewManager;
 import javafx.concurrent.Task;
 import javafx.fxml.FXML;
@@ -163,25 +164,18 @@ public final class ProfileController implements Initializable {
         final String nueva = pfNueva.getText();
         final String confirmar = pfConfirmar.getText();
 
-        if (actual.isEmpty()) {
+        if (ValidationHelper.isNullOrEmpty(actual)) {
             return fallarValidacion(pfActual, "La contraseña actual es obligatoria.");
         }
-        if (nueva.isEmpty()) {
+        if (ValidationHelper.isNullOrEmpty(nueva)) {
             return fallarValidacion(pfNueva, "Introduce una nueva contraseña.");
         }
-        if (confirmar.isEmpty()) {
+        if (ValidationHelper.isNullOrEmpty(confirmar)) {
             return fallarValidacion(pfConfirmar, "Confirma la nueva contraseña.");
         }
         
-        if (nueva.length() < 8) {
-            return fallarValidacion(pfNueva, "La nueva contraseña debe tener al menos 8 caracteres.");
-        }
-        
-        final boolean tieneMayuscula = nueva.chars().anyMatch(Character::isUpperCase);
-        final boolean tieneNumero = nueva.chars().anyMatch(Character::isDigit);
-        
-        if (!tieneMayuscula || !tieneNumero) {
-            return fallarValidacion(pfNueva, "La contraseña debe tener al menos una mayúscula y un número.");
+        if (!ValidationHelper.isStrongPassword(nueva)) {
+            return fallarValidacion(pfNueva, "La contraseña debe tener 8 caracteres, 1 mayúscula y 1 número.");
         }
         
         if (!nueva.equals(confirmar)) {

@@ -5,6 +5,7 @@ import com.hambooking.frontend.dto.AuthDTO;
 import com.hambooking.frontend.service.ApiClient;
 import com.hambooking.frontend.service.ApiException;
 import com.hambooking.frontend.util.AlertHelper;
+import com.hambooking.frontend.util.ValidationHelper;
 import com.hambooking.frontend.util.ViewManager;
 import javafx.concurrent.Task;
 import javafx.fxml.FXML;
@@ -36,9 +37,6 @@ public final class RegisterController implements Initializable {
     @FXML private Label errorLabel;
     @FXML private Button registerBtn;
 
-    private static final String REGEX_DNI = "^[0-9]{8}[A-Za-z]$";
-    private static final String REGEX_PHONE = "^[0-9]{9}$";
-    private static final String REGEX_EMAIL = "^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$";
     private static final String ERROR_CLASS = "error-field";
 
     @Override
@@ -110,32 +108,25 @@ public final class RegisterController implements Initializable {
      * pero destacando el campo exacto que requiere atención.
      */
     private boolean validarFormulario() {
-        if (firstNameField.getText().trim().isEmpty()) {
+        if (ValidationHelper.isNullOrEmpty(firstNameField.getText())) {
             return fallarValidacion(firstNameField, "El nombre es obligatorio.");
         }
-        if (lastNameField.getText().trim().isEmpty()) {
+        if (ValidationHelper.isNullOrEmpty(lastNameField.getText())) {
             return fallarValidacion(lastNameField, "Los apellidos son obligatorios.");
         }
-        if (!dniField.getText().trim().matches(REGEX_DNI)) {
+        if (!ValidationHelper.isValidDNI(dniField.getText())) {
             return fallarValidacion(dniField, "Formato de DNI no válido (ej: 12345678A).");
         }
-        if (!phoneField.getText().trim().matches(REGEX_PHONE)) {
+        if (!ValidationHelper.isValidPhone(phoneField.getText())) {
             return fallarValidacion(phoneField, "El teléfono debe tener 9 dígitos numéricos.");
         }
-        if (!emailField.getText().trim().matches(REGEX_EMAIL)) {
+        if (!ValidationHelper.isValidEmail(emailField.getText())) {
             return fallarValidacion(emailField, "Introduce un correo electrónico válido.");
         }
         
         final String pass = passwordField.getText();
-        if (pass.length() < 8) {
-            return fallarValidacion(passwordField, "La contraseña debe tener al menos 8 caracteres.");
-        }
-        
-        final boolean tieneMayuscula = pass.chars().anyMatch(Character::isUpperCase);
-        final boolean tieneNumero = pass.chars().anyMatch(Character::isDigit);
-        
-        if (!tieneMayuscula || !tieneNumero) {
-            return fallarValidacion(passwordField, "La contraseña debe tener al menos una mayúscula y un número.");
+        if (!ValidationHelper.isStrongPassword(pass)) {
+            return fallarValidacion(passwordField, "La contraseña debe tener 8 caracteres, 1 mayúscula y 1 número.");
         }
         
         if (!pass.equals(confirmPasswordField.getText())) {

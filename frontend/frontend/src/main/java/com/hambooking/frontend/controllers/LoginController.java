@@ -5,6 +5,7 @@ import com.hambooking.frontend.dto.AuthDTO;
 import com.hambooking.frontend.service.ApiClient;
 import com.hambooking.frontend.service.ApiException;
 import com.hambooking.frontend.util.AlertHelper;
+import com.hambooking.frontend.util.ValidationHelper;
 import com.hambooking.frontend.util.ViewManager;
 import javafx.concurrent.Task;
 import javafx.fxml.FXML;
@@ -98,11 +99,11 @@ public final class LoginController implements Initializable {
     }
 
     private boolean validarEntradas(final String email, final String password) {
-        if (email.isEmpty() || password.isEmpty()) {
+        if (ValidationHelper.isNullOrEmpty(email) || ValidationHelper.isNullOrEmpty(password)) {
             mostrarError("Por favor, rellena todos los campos.");
             return false;
         }
-        if (!email.matches(EMAIL_REGEX)) {
+        if (!ValidationHelper.isValidEmail(email)) {
             mostrarError("El formato del email no es válido.");
             return false;
         }
