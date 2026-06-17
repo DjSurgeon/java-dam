@@ -52,5 +52,21 @@ services:
     depends_on:
       - backend
 
+  frontend-web:
+    build:
+      context: ./frontend-web
+      dockerfile: Dockerfile
+      target: development
+    container_name: hambooking-frontend-web
+    ports:
+      - "3000:3000"
+    environment:
+      - WATCHPACK_POLLING=true
+    volumes:
+      - ./frontend-web:/app:z
+      - /app/node_modules
+    depends_on:
+      - backend
+
 volumes:
   db_data:

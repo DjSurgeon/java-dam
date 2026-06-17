@@ -1,0 +1,35 @@
+/**
+ * @file Skeleton.module.scss
+ * @description Styles for the Skeleton atom
+ * @date 2024-05-07
+ * @author Sergio
+ */
+
+@use "@/shared/styles/abstracts" as tokens;
+
+.skeleton {
+  background: rgba(tokens.$surface-container-rgb, 0.2);
+  position: relative;
+  overflow: hidden;
+  display: block;
+  
+  &::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    transform: translateX(-100%);
+    background: linear-gradient(
+      90deg,
+      transparent,
+      rgba(tokens.$on-background-rgb, 0.05),
+      transparent
+    );
+    animation: shimmer 2s infinite;
+  }
+}
+
+@keyframes shimmer {
+  100% {
+    transform: translateX(100%);
+  }
+}

@@ -1,0 +1,69 @@
+/**
+ * @file Typography.module.scss
+ * @description Styles for the Typography atom
+ * @date 2024-05-07
+ * @author Sergio
+ */
+
+@use "@/shared/styles/abstracts" as tokens;
+
+.typography {
+  &--variant-h1 {
+    font-family: tokens.$font-headline;
+    font-size: 7rem; // 112px
+    line-height: 0.85;
+    letter-spacing: -0.05em;
+    font-weight: 300; // Italic/Light is used a lot
+
+    @include tokens.mobile {
+      font-size: 4.5rem;
+    }
+  }
+
+  &--variant-h2 {
+    font-family: tokens.$font-headline;
+    font-size: 8.5rem; // For "Tradición de maestría pura."
+    line-height: 0.85;
+    letter-spacing: -0.02em;
+    font-weight: 300;
+
+    @include tokens.mobile {
+      font-size: 4rem;
+    }
+  }
+
+  &--variant-h3 {
+    font-family: tokens.$font-headline;
+    font-size: 1.875rem; // 30px
+    line-height: 1.2;
+    font-weight: 400;
+  }
+
+  &--variant-body {
+    font-family: tokens.$font-body;
+    font-size: 1.5rem; // 24px
+    line-height: 1.6;
+    font-weight: 300;
+
+    @include tokens.mobile {
+      font-size: 1.125rem;
+    }
+  }
+
+  &--variant-technical {
+    font-family: tokens.$font-technical;
+    font-size: 0.6875rem; // 11px
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5em; // Extreme tracking as seen in App.tsx
+  }
+
+  // Colors
+  &--color-primary { color: tokens.$primary; }
+  &--color-on-background { color: tokens.$on-background; }
+  &--color-on-surface { color: tokens.$on-surface; }
+  &--color-on-surface-variant { color: tokens.$on-surface-variant; }
+
+  // Modifiers
+  &--italic { font-style: italic; }
+}

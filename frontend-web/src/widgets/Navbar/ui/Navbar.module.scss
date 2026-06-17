@@ -1,0 +1,177 @@
+/**
+ * @file Navbar.module.scss
+ * @description Styles for Navbar widget
+ * @date 2024-05-07
+ * @author Sergio
+ */
+
+@use "@/shared/styles/abstracts" as tokens;
+
+.header {
+  position: fixed;
+  top: 0;
+  width: 100%;
+  z-index: 50;
+  transition: all 0.4s tokens.$transition-slow;
+  padding: 1.25rem 0; // Standardized padding for uniformity
+  
+  &--scrolled {
+    background: rgba(tokens.$background, 0.8);
+    backdrop-filter: blur(24px);
+    border-bottom: 1px solid rgba(tokens.$primary, 0.05);
+    padding: 1.25rem 0; // Same size as initial
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.3);
+  }
+}
+
+.container {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 0 2.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.logo {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  color: tokens.$on-background;
+  cursor: pointer;
+  text-decoration: none;
+  
+  &Icon {
+    display: flex;
+    align-items: center;
+    transition: color 0.4s;
+    
+    @include tokens.desktop {
+      display: none;
+    }
+  }
+  
+  &:hover &Icon {
+    color: tokens.$primary;
+  }
+  
+  &Text {
+    display: none;
+    font-family: tokens.$font-headline;
+    font-size: 1.5rem;
+    font-weight: 300;
+    letter-spacing: -0.02em;
+    transition: all 0.4s;
+    
+    @include tokens.desktop {
+      display: block;
+    }
+
+    strong {
+      font-weight: 800;
+      color: tokens.$primary;
+    }
+  }
+  
+  &:hover &Text {
+    letter-spacing: 0.05em;
+  }
+}
+
+.desktopNav {
+  display: none;
+  align-items: center;
+  gap: 3.5rem;
+  
+  @include tokens.desktop {
+    display: flex;
+  }
+}
+
+.navLink {
+  font-family: tokens.$font-body;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.4em;
+  font-weight: 700;
+  color: tokens.$on-surface-variant;
+  position: relative;
+  padding: 0.5rem 0;
+  transition: all 0.4s;
+  text-decoration: none;
+  
+  &:hover {
+    color: tokens.$on-background;
+  }
+  
+  &::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 0;
+    height: 1px;
+    background-color: tokens.$primary;
+    transition: width 0.4s tokens.$transition-slow;
+  }
+  
+  &:hover::after {
+    width: 100%;
+  }
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  
+  @include tokens.desktop {
+    gap: 2.5rem;
+  }
+}
+
+.mobileToggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  cursor: pointer;
+  z-index: 101;
+  color: tokens.$on-background;
+  
+  @include tokens.desktop {
+    display: none;
+  }
+}
+
+.mobileMenu {
+  position: fixed;
+  inset: 0;
+  background: tokens.$background;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  
+  &Overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(tokens.$background, 0.9);
+    backdrop-filter: blur(20px);
+    z-index: 99;
+  }
+}
+
+.mobileNav {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2.5rem;
+  
+  .navLink {
+    font-size: 1.5rem;
+    letter-spacing: 0.2em;
+  }
+}

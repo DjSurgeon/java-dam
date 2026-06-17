@@ -2,6 +2,7 @@
 **/target/
 **/build/
 **/dist/
+**/node_modules/
 
 # Ignore local Maven wrapper
 **/mvnw

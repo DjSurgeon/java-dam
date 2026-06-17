@@ -1,0 +1,27 @@
+/**
+ * @file FeatureCard.module.scss
+ * @description Styles for FeatureCard molecule
+ * @date 2024-05-07
+ * @author Sergio
+ */
+
+@use "@/shared/styles/abstracts" as tokens;
+
+.featureCard {
+  @include tokens.glass;
+  padding: 2.5rem;
+  border-radius: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  transition: transform tokens.$transition-base, border-color tokens.$transition-base;
+
+  &:hover {
+    transform: translateY(-8px);
+    border-color: rgba(tokens.$primary-rgb, 0.3);
+    
+    .iconWrapper {
+      transform: scale(1.1) rotate(5deg);
+    }
+  }
+}

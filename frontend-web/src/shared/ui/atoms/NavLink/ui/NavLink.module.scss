@@ -1,0 +1,47 @@
+/**
+ * @file NavLink.module.scss
+ * @description Styles for NavLink atom
+ * @date 2024-05-07
+ * @author Sergio
+ */
+
+@use "@/shared/styles/abstracts" as tokens;
+
+.navLink {
+  font-family: tokens.$font-body;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.4em;
+  font-weight: 700;
+  color: tokens.$on-surface-variant;
+  position: relative;
+  padding: 0.5rem 0;
+  transition: all 0.4s;
+  text-decoration: none;
+  display: inline-block;
+  
+  &:hover {
+    color: tokens.$on-background;
+  }
+  
+  &::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 0;
+    height: 1px;
+    background-color: tokens.$primary;
+    transition: width 0.4s tokens.$transition-slow;
+  }
+  
+  &:hover::after {
+    width: 100%;
+  }
+
+  &--mobile {
+    font-size: 1.5rem;
+    letter-spacing: 0.2em;
+    padding: 1rem 0;
+  }
+}

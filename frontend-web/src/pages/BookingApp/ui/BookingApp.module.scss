@@ -1,0 +1,29 @@
+/**
+ * @file BookingApp.module.scss
+ * @description Styles for the BookingApp placeholder
+ * @date 2024-05-07
+ * @author Sergio
+ */
+
+@use "@/shared/styles/abstracts" as tokens;
+
+.page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  background-color: tokens.$background;
+}
+
+.content {
+  text-align: center;
+}
+
+.badge {
+  margin-bottom: 2rem;
+}
+
+.highlight {
+  font-style: italic;
+  font-weight: 300;
+  color: tokens.$primary;
+}

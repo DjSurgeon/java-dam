@@ -1,0 +1,63 @@
+/**
+ * @file Button.module.scss
+ * @description Styles for the Button atom
+ * @date 2024-05-07
+ * @author Sergio
+ */
+
+@use "@/shared/styles/abstracts" as tokens;
+
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.75rem 2.5rem;
+  border-radius: 9999px; // rounded-full
+  font-family: tokens.$font-body;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.3em;
+  transition: all tokens.$transition-slow;
+  cursor: pointer;
+
+  &:active {
+    transform: scale(0.95);
+  }
+
+  &--variant-primary {
+    background-color: tokens.$on-background;
+    color: tokens.$background;
+    box-shadow: 0 10px 30px rgba(tokens.$surface-container-rgb, 0.3);
+
+    &:hover {
+      background-color: tokens.$primary;
+    }
+  }
+
+  &--variant-outline {
+    border: 1px solid tokens.$primary-container;
+    color: tokens.$on-surface-variant;
+
+    &:hover {
+      color: tokens.$on-background;
+      border-color: tokens.$primary;
+    }
+  }
+
+  &--variant-text {
+    padding: 0;
+    background: transparent;
+    color: tokens.$on-surface-variant;
+
+    &:hover {
+      color: tokens.$on-background;
+    }
+  }
+
+  &--size-small {
+    padding: 0.5rem 1.5rem;
+    font-size: 0.6875rem;
+  }
+}

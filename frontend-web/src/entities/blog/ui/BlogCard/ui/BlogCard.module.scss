@@ -1,0 +1,154 @@
+/**
+ * @file BlogCard.module.scss
+ * @description Styles for the BlogCard entity component
+ * @date 2024-05-07
+ * @author Sergio
+ */
+
+@use "@/shared/styles/abstracts" as tokens;
+
+.card {
+  position: relative;
+  display: block;
+  width: 100%;
+  border-radius: 20px;
+  overflow: hidden;
+  background: rgba(tokens.$surface-container-rgb, 0.4);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(tokens.$on-background-rgb, 0.05);
+  transition: all tokens.$transition-slow;
+  cursor: pointer;
+
+  &:hover {
+    transform: translateY(-8px);
+    background: rgba(tokens.$surface-container-rgb, 0.6);
+    border-color: rgba(tokens.$primary-rgb, 0.2);
+    
+    .image {
+      transform: scale(1.05);
+    }
+    
+    .imageOverlay {
+      opacity: 0.2;
+    }
+    
+    .icon {
+      transform: translateX(4px);
+    }
+
+    .glint {
+      opacity: 1;
+      transform: rotate(35deg) translate(200%, -200%);
+      transition: transform 1.5s cubic-bezier(0.19, 1, 0.22, 1), opacity 0.3s;
+    }
+  }
+}
+
+.cardInner {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.imageContainer {
+  position: relative;
+  width: 100%;
+  height: 240px;
+  overflow: hidden;
+  border-radius: 20px 20px 0 0;
+  
+  // Vignette effect to blend image into background
+  &::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 50%;
+    background: linear-gradient(to bottom, transparent, rgba(tokens.$surface-container-rgb, 0.5));
+    pointer-events: none;
+  }
+}
+
+.image {
+  width: 100%;
+  height: 100%;
+  background-size: cover;
+  background-position: center;
+  transition: transform tokens.$transition-slow;
+}
+
+.imageOverlay {
+  position: absolute;
+  inset: 0;
+  background: tokens.$surface-container-high;
+  opacity: 0;
+  transition: opacity tokens.$transition-slow;
+  mix-blend-mode: multiply;
+}
+
+.glint {
+  position: absolute;
+  top: -100%;
+  left: -100%;
+  width: 50%;
+  height: 300%;
+  background: linear-gradient(to right, transparent, rgba(tokens.$on-background-rgb, 0.3), transparent);
+  transform: rotate(35deg) translate(-100%, 100%);
+  opacity: 0;
+  pointer-events: none;
+  z-index: 10;
+}
+
+.content {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  padding: 2rem;
+}
+
+.meta {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.metaLine {
+  flex: 1;
+  height: 1px;
+  background: rgba(tokens.$on-background-rgb, 0.1);
+}
+
+.title {
+  margin-bottom: 2rem;
+  flex: 1;
+  
+  h3 {
+    line-height: 1.3;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+}
+
+.footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-top: 1.5rem;
+  border-top: 1px solid rgba(tokens.$on-background-rgb, 0.05);
+}
+
+.link {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: tokens.$primary;
+}
+
+.icon {
+  transition: transform tokens.$transition-slow;
+}

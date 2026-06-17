@@ -1,6 +1,6 @@
 # Makefile to orchestrate HamBooking multi-container environment
 
-.PHONY: all help xhost up up-d down clean db backend frontend rebuild rebuild-backend rebuild-frontend status logs logs-backend logs-frontend
+.PHONY: all help xhost up up-d down clean db backend frontend web rebuild rebuild-backend rebuild-frontend rebuild-web status logs logs-backend logs-frontend logs-web
 
 # Default target
 all: up
@@ -51,6 +51,11 @@ frontend: xhost
 	@echo "Starting frontend service..."
 	DISPLAY=$${DISPLAY:-:0} docker compose up frontend
 
+## web: Start only the React/Vite web frontend service
+web:
+	@echo "Starting web frontend service..."
+	docker compose up frontend-web
+
 ## rebuild: Rebuild all Docker images and restart all services
 rebuild: xhost
 	@echo "Forcing build and restart of all services..."
@@ -68,6 +73,13 @@ rebuild-frontend: xhost
 	docker compose build frontend
 	DISPLAY=$${DISPLAY:-:0} docker compose up -d frontend
 
+## rebuild-web: Rebuild the web frontend image and restart the service
+rebuild-web:
+	@echo "Rebuilding and restarting web frontend service..."
+	docker compose rm -f -s -v frontend-web
+	docker compose build --no-cache frontend-web
+	docker compose up -d frontend-web
+
 ## status: List status of all active containers in the stack
 status:
 	@docker compose ps
@@ -83,3 +95,7 @@ logs-backend:
 ## logs-frontend: Follow logs of the frontend service
 logs-frontend:
 	@docker compose logs -f frontend
+
+## logs-web: Follow logs of the web frontend service
+logs-web:
+	@docker compose logs -f frontend-web

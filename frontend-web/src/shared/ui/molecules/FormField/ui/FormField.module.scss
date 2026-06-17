@@ -1,0 +1,35 @@
+/**
+ * @file FormField.module.scss
+ * @description Styles for the FormField molecule
+ * @date 2024-05-07
+ * @author Sergio
+ */
+
+@use "@/shared/styles/abstracts" as tokens;
+
+.inputGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.label {
+  font-family: tokens.$font-body;
+  font-size: 0.625rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.3em;
+  color: tokens.$on-surface-variant;
+  transition: color tokens.$transition-base;
+
+  .inputGroup:focus-within & {
+    color: tokens.$primary;
+  }
+}
+
+.errorText {
+  color: tokens.$error;
+  font-size: 0.75rem;
+  font-family: tokens.$font-body;
+  margin-top: 0.5rem;
+}

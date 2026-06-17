@@ -1,0 +1,206 @@
+/**
+ * @file ContactForm.module.scss
+ * @description Styles for ContactForm feature
+ * @date 2024-05-07
+ * @author Sergio
+ */
+
+@use "@/shared/styles/abstracts" as tokens;
+
+.section {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  padding: 5rem 2.5rem 3rem; // Even tighter padding
+  border-top: 1px solid rgba(tokens.$on-background-rgb, 0.05);
+  position: relative;
+  overflow: hidden;
+  background-color: tokens.$background;
+
+  &::before,
+  &::after {
+    content: '';
+    position: absolute;
+    width: 60vw;
+    height: 60vw;
+    border-radius: 50%;
+    filter: blur(100px);
+    z-index: 0;
+    opacity: 0.15;
+    pointer-events: none;
+  }
+
+  &::before {
+    top: -20%;
+    left: -10%;
+    background: radial-gradient(circle, tokens.$primary 0%, transparent 70%);
+  }
+
+  &::after {
+    bottom: -20%;
+    right: -10%;
+    background: radial-gradient(circle, rgba(tokens.$on-background-rgb, 0.8) 0%, transparent 70%);
+  }
+}
+
+.container {
+  max-width: 1000px;
+  margin: 0 auto;
+  position: relative;
+  z-index: 10;
+  text-align: center;
+}
+
+.header {
+  margin-bottom: 1.5rem;
+}
+
+.description {
+  max-width: 35rem;
+  margin: 1rem auto 2.5rem;
+  font-weight: 300;
+}
+
+.form {
+  @include tokens.glass;
+  border-radius: 2.5rem;
+  padding: 2rem;
+  text-align: left;
+  position: relative;
+  overflow: hidden;
+
+  @include tokens.desktop {
+    padding: 3rem;
+  }
+}
+
+.successOverlay {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  background: rgba(tokens.$surface-container, 0.95);
+  backdrop-filter: blur(24px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 2.5rem;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1.5rem;
+  margin-bottom: 1.5rem;
+
+  @include tokens.desktop {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+.inputGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.label {
+  font-family: tokens.$font-body;
+  font-size: 0.625rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.3em;
+  color: tokens.$on-surface-variant;
+  transition: color tokens.$transition-base;
+
+  .inputGroup:focus-within & {
+    color: tokens.$primary;
+  }
+}
+
+.input {
+  width: 100%;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid rgba(tokens.$on-background-rgb, 0.1);
+  padding: 1rem 0;
+  color: tokens.$on-background;
+  font-family: tokens.$font-body;
+  font-size: 1.125rem;
+  transition: border-color tokens.$transition-base;
+
+  &:focus {
+    outline: none;
+    border-color: tokens.$primary;
+  }
+
+  &--error {
+    border-color: rgba(tokens.$error-rgb, 0.5);
+  }
+}
+
+.textarea {
+  min-height: 80px;
+  resize: none;
+}
+
+.errorText {
+  color: tokens.$error;
+  font-size: 0.75rem;
+  font-family: tokens.$font-body;
+  margin-top: 0.5rem;
+}
+
+.submitWrapper {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.submitBtn {
+  position: relative;
+  padding: 1.25rem 3rem;
+  background-color: tokens.$primary;
+  color: #ffffff;
+  font-family: tokens.$font-body;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.4em;
+  font-weight: 700;
+  border-radius: 9999px;
+  overflow: hidden;
+  transition: all 0.5s;
+  cursor: pointer;
+  border: 1px solid rgba(tokens.$on-background-rgb, 0.1);
+  box-shadow: 0 10px 30px rgba(tokens.$primary-rgb, 0.2);
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  &:hover:not(:disabled) {
+    box-shadow: 0 10px 40px rgba(tokens.$primary-rgb, 0.5);
+    transform: translateY(-2px);
+  }
+}
+
+.submitContent {
+  position: relative;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.submitBg {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to right, transparent, rgba(tokens.$on-background-rgb, 0.2), transparent);
+  transform: translateX(-100%);
+  transition: transform 0.8s ease;
+
+  .submitBtn:hover:not(:disabled) & {
+    transform: translateX(100%);
+  }
+}

@@ -1,0 +1,49 @@
+/**
+ * @file Logo.module.scss
+ * @description Styles for Logo atom
+ * @date 2024-05-07
+ * @author Sergio
+ */
+
+@use "@/shared/styles/abstracts" as tokens;
+
+.logo {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  color: tokens.$on-background;
+  cursor: pointer;
+  text-decoration: none;
+  transition: opacity 0.3s;
+
+  &:hover {
+    opacity: 0.8;
+  }
+}
+
+.icon {
+  display: flex;
+  align-items: center;
+  transition: color 0.4s;
+  
+  @include tokens.desktop {
+    display: none;
+  }
+}
+
+.text {
+  display: none;
+  font-size: 1.5rem !important;
+  font-weight: 300 !important;
+  letter-spacing: -0.02em !important;
+  margin: 0;
+  
+  @include tokens.desktop {
+    display: block;
+  }
+
+  strong {
+    font-weight: 800;
+    color: tokens.$primary;
+  }
+}

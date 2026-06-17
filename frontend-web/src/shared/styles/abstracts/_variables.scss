@@ -1,0 +1,86 @@
+/**
+ * @file _variables.scss
+ * @description Core design tokens (Dark/Premium aesthetic)
+ * @date 2024-05-07
+ * @author Sergio
+ */
+
+:root, [data-theme='dark'] {
+  // Dark Palette (Default)
+  --color-bg: #0a0a0a;
+  --color-bg-rgb: 10, 10, 10;
+  --color-surface: #111111;
+  --color-surface-container: #1B1816;
+  --color-surface-container-rgb: 27, 24, 22;
+  --color-surface-container-high: #2A2826;
+
+  --color-on-bg: #ffffff;
+  --color-on-bg-rgb: 255, 255, 255;
+  --color-on-surface: #E7DFD1;
+  --color-on-surface-variant: #A7A29A;
+
+  --color-primary: #8B1C31; // Wine
+  --color-primary-rgb: 139, 28, 49;
+  --color-primary-container: rgba(139, 28, 49, 0.1);
+  --color-on-primary: #ffffff;
+
+  --color-error: #f87171;
+  --color-error-rgb: 248, 113, 113;
+}
+
+[data-theme='light'] {
+  // Light Palette
+  --color-bg: #F7F5F0; // Bone
+  --color-bg-rgb: 247, 245, 240;
+  --color-surface: #ffffff;
+  --color-surface-container: #EAE6DF;
+  --color-surface-container-rgb: 234, 230, 223;
+  --color-surface-container-high: #DDD7CE;
+
+  --color-on-bg: #1A1514;
+  --color-on-bg-rgb: 26, 21, 20;
+  --color-on-surface: #2D2422;
+  --color-on-surface-variant: #6B5E5B;
+
+  --color-primary: #8B1C31; // Wine looks great on light too
+  --color-primary-rgb: 139, 28, 49;
+  --color-primary-container: rgba(139, 28, 49, 0.1);
+  --color-on-primary: #ffffff;
+
+  --color-error: #dc2626;
+  --color-error-rgb: 220, 38, 38;
+}
+
+// Color Tokens Mapped to CSS Variables
+$background: var(--color-bg);
+$background-rgb: var(--color-bg-rgb);
+$surface: var(--color-surface);
+$surface-container: var(--color-surface-container);
+$surface-container-rgb: var(--color-surface-container-rgb);
+$surface-container-high: var(--color-surface-container-high);
+
+$on-background: var(--color-on-bg);
+$on-background-rgb: var(--color-on-bg-rgb);
+$on-surface: var(--color-on-surface);
+$on-surface-variant: var(--color-on-surface-variant);
+
+$primary: var(--color-primary);
+$primary-rgb: var(--color-primary-rgb);
+$primary-container: var(--color-primary-container);
+$on-primary: var(--color-on-primary);
+
+$error: var(--color-error);
+$error-rgb: var(--color-error-rgb);
+
+// Typography
+$font-headline: 'Epilogue', sans-serif;
+$font-body: 'Manrope', sans-serif;
+$font-technical: 'Space Grotesk', monospace;
+
+// Spacing
+$spacing-gutter: 24px;
+$spacing-container-max: 1280px;
+
+// Transitions
+$transition-base: 0.3s ease;
+$transition-slow: 0.7s cubic-bezier(0.19, 1, 0.22, 1);

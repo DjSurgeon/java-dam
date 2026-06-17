@@ -1,0 +1,47 @@
+# .dockerignore
+# @description Exclusiones del contexto de build de Docker.
+#              Evita que archivos pesados o sensibles entren en la imagen.
+# @date 2026-05-09
+# @author Sergio
+#
+# ⚠️ IMPORTANTE: .dockerignore solo admite comentarios con "#".
+#                Nunca usar bloques /* */ — serían interpretados como patrones
+#                de exclusión (/** excluiría TODO el contexto de build).
+
+# Dependencias — se instalan dentro del contenedor
+node_modules
+
+# Artefactos de build
+dist
+build
+coverage
+
+# Control de versiones
+.git
+.gitignore
+
+# Variables de entorno — NUNCA en la imagen
+.env
+.env.*
+!.env.example
+
+# Logs y artefactos temporales
+*.log
+npm-debug.log*
+test_output.txt
+
+# Archivos de editor
+.vscode
+.idea
+*.swp
+*.swo
+
+# Archivos de OS
+.DS_Store
+Thumbs.db
+
+# Archivos de infraestructura (no necesarios dentro del contenedor)
+docker-compose*.yml
+Dockerfile
+.dockerignore
+

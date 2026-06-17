@@ -1,0 +1,32 @@
+/**
+ * @file Input.module.scss
+ * @description Styles for the Input atom
+ * @date 2024-05-07
+ * @author Sergio
+ */
+
+@use "@/shared/styles/abstracts" as tokens;
+
+.input {
+  width: 100%;
+  background: rgba(tokens.$surface-container-rgb, 0.3);
+  border: 1px solid rgba(tokens.$on-background-rgb, 0.05);
+  border-radius: 1rem;
+  padding: 1rem 1.25rem;
+  color: tokens.$on-background;
+  font-family: tokens.$font-body;
+  font-size: 1rem;
+  transition: all tokens.$transition-base;
+
+  &:focus {
+    outline: none;
+    border-color: tokens.$primary;
+    background: rgba(tokens.$surface-container-rgb, 0.5);
+    box-shadow: 0 0 0 3px rgba(tokens.$primary-rgb, 0.15);
+  }
+
+  &--error {
+    border-color: rgba(tokens.$error-rgb, 0.5);
+    box-shadow: 0 0 0 3px rgba(tokens.$error-rgb, 0.1);
+  }
+}

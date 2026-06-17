@@ -1,0 +1,20 @@
+/**
+ * @file Container.module.scss
+ * @description Styles for the Container atom
+ * @date 2024-05-07
+ * @author Sergio
+ */
+
+@use "@/shared/styles/abstracts" as tokens;
+
+.container {
+  width: 100%;
+  max-width: tokens.$spacing-container-max;
+  margin: 0 auto;
+  padding: 0 tokens.$spacing-gutter;
+  box-sizing: border-box;
+
+  &--fluid {
+    max-width: none;
+  }
+}

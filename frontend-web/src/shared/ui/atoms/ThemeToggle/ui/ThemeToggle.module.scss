@@ -1,0 +1,57 @@
+/**
+ * @file ThemeToggle.module.scss
+ * @description Styles for the ThemeToggle atom
+ * @date 2024-05-07
+ * @author Sergio
+ */
+
+@use "@/shared/styles/abstracts" as tokens;
+
+.toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 50%;
+  border: 1px solid rgba(tokens.$on-background-rgb, 0.1);
+  background: transparent;
+  color: tokens.$on-background;
+  cursor: pointer;
+  transition: all tokens.$transition-base;
+  position: relative;
+  overflow: hidden;
+
+  &:hover {
+    border-color: tokens.$primary;
+    background: rgba(tokens.$primary-rgb, 0.1);
+    color: tokens.$primary;
+  }
+
+  &:active {
+    transform: scale(0.95);
+  }
+}
+
+.iconWrapper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: absolute;
+  transition: transform 0.5s cubic-bezier(0.68, -0.55, 0.265, 1.55), opacity 0.3s ease;
+}
+
+.iconEnter {
+  transform: translateY(0) rotate(0);
+  opacity: 1;
+}
+
+.iconExitUp {
+  transform: translateY(-2rem) rotate(45deg);
+  opacity: 0;
+}
+
+.iconExitDown {
+  transform: translateY(2rem) rotate(-45deg);
+  opacity: 0;
+}

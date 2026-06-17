@@ -1,0 +1,49 @@
+/**
+ * @file Hero.module.scss
+ * @description Ultra-minimalist styles for Hero widget
+ * @date 2024-05-07
+ * @author Sergio
+ */
+
+@use "@/shared/styles/abstracts" as tokens;
+
+.hero {
+  position: relative;
+  height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 tokens.$spacing-gutter;
+  overflow: hidden;
+  background-color: tokens.$background;
+}
+
+.content {
+  position: relative;
+  z-index: 10;
+  width: 100%;
+  max-width: 1400px;
+  margin: 0 auto;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+}
+
+.titleWrapper {
+  max-width: 900px;
+  margin: 0 auto;
+}
+
+.title {
+  font-size: clamp(3rem, 8vw, 6rem) !important;
+  line-height: 1.1 !important;
+  font-weight: 200 !important;
+  letter-spacing: -0.04em !important;
+}
+
+.highlight {
+  font-style: italic;
+  font-weight: 300;
+  color: tokens.$primary;
+}

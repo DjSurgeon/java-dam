@@ -1,0 +1,38 @@
+/**
+ * @file _mixins.scss
+ * @description Global SCSS mixins
+ * @date 2024-05-07
+ * @author Sergio
+ */
+
+@use "variables" as v;
+
+@mixin mobile {
+  @media (max-width: 768px) {
+    @content;
+  }
+}
+
+@mixin desktop {
+  @media (min-width: 769px) {
+    @content;
+  }
+}
+
+@mixin flex-center {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+@mixin glass {
+  background: rgba(v.$surface-container-rgb, 0.4);
+  backdrop-filter: blur(16px);
+  border: 1px solid rgba(v.$on-background-rgb, 0.05);
+}
+
+@mixin container {
+  max-width: v.$spacing-container-max;
+  margin: 0 auto;
+  padding: 0 v.$spacing-gutter;
+}

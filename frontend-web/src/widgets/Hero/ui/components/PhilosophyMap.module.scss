@@ -1,0 +1,106 @@
+/**
+ * @file PhilosophyMap.module.scss
+ * @description Refined styles for PhilosophyMap
+ * @date 2024-05-07
+ * @author Sergio
+ */
+
+@use "@/shared/styles/abstracts" as tokens;
+
+.mapContainer {
+  position: absolute;
+  inset: 0;
+  z-index: 15;
+}
+
+.hotspotWrapper {
+  position: absolute;
+  width: 40px;
+  height: 40px;
+  transform: translate(-50%, -50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 20;
+}
+
+.infoCard {
+  position: fixed; // Default for mobile
+  bottom: 2rem;
+  left: 50%;
+  transform: translateX(-50%);
+  width: calc(100vw - 4rem);
+  max-width: 350px;
+  padding: 1.5rem;
+  background: rgba(tokens.$surface-container-rgb, 0.6);
+  backdrop-filter: blur(24px);
+  border: 1px solid rgba(tokens.$on-background-rgb, 0.1);
+  border-radius: 4px;
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  box-shadow: 0 40px 100px rgba(0, 0, 0, 0.5);
+  pointer-events: auto;
+
+  @include tokens.desktop {
+    position: absolute;
+    width: 300px;
+    bottom: auto;
+    left: auto;
+    transform: none;
+  }
+
+  // --- Dynamic Positions (Desktop) ---
+  &--bottom-right {
+    @include tokens.desktop {
+      top: 40px;
+      left: 40px;
+    }
+  }
+
+  &--top-left {
+    @include tokens.desktop {
+      bottom: 40px;
+      right: 40px;
+    }
+  }
+
+  &--top-right {
+    @include tokens.desktop {
+      bottom: 40px;
+      left: 40px;
+    }
+  }
+}
+
+.cardLabel {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+  border-bottom: 1px solid rgba(tokens.$primary-rgb, 0.3);
+  padding-bottom: 0.5rem;
+  margin: 0;
+}
+
+.cardContent {
+  font-size: 0.9rem;
+  line-height: 1.5;
+  margin: 0;
+}
+
+.closeBtn {
+  align-self: flex-end;
+  background: none;
+  border: none;
+  color: tokens.$primary;
+  font-family: tokens.$font-technical;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  cursor: pointer;
+  padding: 0.4rem;
+  
+  @include tokens.desktop {
+    display: none; // No close button on desktop hover
+  }
+}
