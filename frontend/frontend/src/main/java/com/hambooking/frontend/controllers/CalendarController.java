@@ -171,7 +171,6 @@ public final class CalendarController implements Initializable {
 
         task.setOnSucceeded(e -> {
             final List<LocalTime> horasOcupadas = task.getValue();
-            // Asegurar que la manipulación de nodos visuales se hace en el hilo de JavaFX
             Platform.runLater(() -> renderColumnaSlots(col, carver, servicio, horasOcupadas, fecha));
         });
 

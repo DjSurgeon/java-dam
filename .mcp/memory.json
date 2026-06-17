@@ -1,0 +1,55 @@
+{
+  "docker_rules": [
+    {
+      "id": "db-1",
+      "tag": "spring-boot",
+      "title": "Spring Boot Multi-Stage Build",
+      "description": "Utilizar multi-stage builds para separar la fase de compilación (Maven/JDK) de la de ejecución (JRE ligero). Esto reduce el tamaño de la imagen final y mejora la seguridad.",
+      "content": "FROM maven:3.9-eclipse-temurin-21-alpine AS build\nWORKDIR /app\nCOPY pom.xml .\nCOPY src ./src\nRUN mvn clean package -DskipTests\n\nFROM eclipse-temurin:21-jre-alpine\nWORKDIR /app\nCOPY --from=build /app/target/*.jar app.jar\nEXPOSE 8080\nUSER 1000:1000\nENTRYPOINT [\"java\", \"-jar\", \"app.jar\"]"
+    },
+    {
+      "id": "db-2",
+      "tag": "mysql",
+      "title": "MySQL Persistence & Healthcheck",
+      "description": "Asegurar la persistencia de datos montando un volumen en /var/lib/mysql y utilizar un healthcheck para que el backend espere a que la base de datos esté lista.",
+      "content": "services:\n  db:\n    image: mysql:8.0\n    volumes:\n      - db_data:/var/lib/mysql\n    environment:\n      MYSQL_DATABASE: hambooking\n      MYSQL_ROOT_PASSWORD: sergio1234\n    healthcheck:\n      test: [\"CMD\", \"mysqladmin\", \"ping\", \"-h\", \"localhost\", \"-u\", \"root\", \"-psergio1234\"]\n      interval: 10s\n      timeout: 5s\n      retries: 5"
+    },
+    {
+      "id": "db-3",
+      "tag": "javafx",
+      "title": "JavaFX en Docker (X11 Forwarding)",
+      "description": "Para ejecutar la interfaz JavaFX de forma contenedorizada, se debe compartir el servidor X de Linux mediante el montaje del socket X11 y la variable DISPLAY.",
+      "content": "services:\n  frontend:\n    image: bellsoft/liberica-openjdk-alpine-with-javafx:21\n    environment:\n      - DISPLAY=${DISPLAY}\n    volumes:\n      - /tmp/.X11-unix:/tmp/.X11-unix:ro\n    network_mode: host"
+    },
+    {
+      "id": "db-4",
+      "tag": "dockerignore",
+      "title": ".dockerignore para Java",
+      "description": "Evitar copiar archivos innecesarios como carpetas 'target', '.git', '.idea' o archivos de configuración locales a la hora de compilar.",
+      "content": "**/target/\n**/.git\n**/.idea\n**/mvnw\n**/mvnw.cmd\n**/.mvn/\nDockerfile\ndocker-compose.yml"
+    },
+    {
+      "id": "db-1781719058441",
+      "tag": "docker",
+      "title": "Uso de Docker Compose depend_on condition",
+      "description": "Asegurar que el backend espere a que el healthcheck de la base de datos esté complete antes de arrancar.",
+      "content": "depends_on:\n  db:\n    condition: service_healthy"
+    }
+  ],
+  "project_lessons": [
+    {
+      "id": "pl-1",
+      "tag": "jpa",
+      "title": "FetchType.LAZY Mandatorio",
+      "description": "En JPA/Hibernate, todas las asociaciones (@OneToMany, @ManyToMany, @ManyToOne, @OneToOne) deben declarar explícitamente FetchType.LAZY para evitar N+1 queries y problemas de memoria.",
+      "content": "@ManyToOne(fetch = FetchType.LAZY)\n@JoinColumn(name = \"client_id\")\nprivate User client;"
+    },
+    {
+      "id": "pl-2",
+      "tag": "docs",
+      "title": "Documentación en Español",
+      "description": "Toda la documentación técnica del proyecto (TFG) debe redactarse en español para la defensa académica.",
+      "content": "Estándar establecido en GEMINI.md"
+    }
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "hambooking-mcp": {
+      "command": "node",
+      "args": [
+        "/home/sergio/vscode/java-dam/.mcp/index.js"
+      ],
+      "env": {}
+    }
+  }
+}
