@@ -75,7 +75,50 @@ xhost +local:docker
 ## 🧪 6. Checklist de Validación
 Para validar si la dockerización se completó con éxito:
 1. Ejecutar `mvn clean` localmente para evitar copiar residuos locales a los contextos de construcción.
-2. Ejecutar `xhost +local:docker` en la terminal del host.
-3. Levantar con `docker compose up --build`.
+2. Ejecutar `xhost +local:` en la terminal del host.
+3. Levantar pasando la variable gráfica: `DISPLAY=$DISPLAY docker compose up --build`.
 4. Verificar en consola que `hambooking-backend` conecta a `hambooking-db` y que no arroja errores de persistencia (Hibernate).
-5. Confirmar que la interfaz gráfica del frontend JavaFX se abre correctamente en la pantalla del host.
+5. Confirmar que la interfaz gráfica del frontend JavaFX se abre correctamente en la pantalla del host y se cierra de forma limpia (código de salida 0).
+
+---
+
+## 🪲 7. Lecciones Aprendidas y Solución de Errores (Troubleshooting)
+
+A continuación, se catalogan los errores de infraestructura y entorno reales que encontramos durante la implementación y sus respectivas correcciones definitivas:
+
+### 1. `E: Package 'libasound2' has no installation candidate`
+* **Causa**: Las nuevas versiones de imágenes base (como Ubuntu 24.04 LTS en las que se basan los JDKs modernos) han renombrado el paquete heredado `libasound2` a `libasound2t64` debido a la transición del sistema para soportar tiempos de 64 bits (`time_t`).
+* **Solución**: En el `Dockerfile` del frontend, instalar `libasound2t64` en su lugar.
+
+### 2. `groupadd: GID '1000' already exists`
+* **Causa**: Las imágenes base modernas de Eclipse Temurin para Java 21 vienen con un usuario preexistente llamado `ubuntu` que ya ocupa el UID y GID `1000`. Al intentar aprovisionar nuestro usuario `developer:1000`, la construcción falla.
+* **Solución**: Eliminar de forma forzada el usuario y grupo preexistente antes de crear el nuestro:
+  ```dockerfile
+  if getent passwd ubuntu; then userdel -f ubuntu; fi && \
+  if getent group ubuntu; then groupdel ubuntu; fi && \
+  groupadd -g 1000 developer && \
+  useradd -u 1000 -g 1000 -m developer
+  ```
+
+### 3. `Failed to execute goal org.openjfx:javafx-maven-plugin:run (Exit value: 1)`
+* **Causa**: El plugin de openjfx de Maven bifurca (fork) la ejecución de la JVM. Este nuevo proceso hijo no hereda las variables de socket X11 y de red gráfica del contenedor, crasheando silenciosamente y tragándose la traza de excepción real.
+* **Solución**: Separar la fase de construcción de la ejecución. Compilar (`mvn clean compile`) y extraer dependencias (`mvn dependency:copy-dependencies`) en el `Dockerfile`. En tiempo de ejecución (`CMD`), arrancar la aplicación de manera directa invocando al binario `java` sobre el `--module-path`.
+
+### 4. `java.lang.UnsupportedOperationException: Unable to open DISPLAY`
+* **Causa**: En sistemas del host con **SELinux activo** (como Fedora, RHEL, CentOS), el demonio de Docker bloquea por defecto la comunicación inter-proceso (IPC) y la lectura/escritura del contenedor hacia el socket de X11 en `/tmp/.X11-unix` y el archivo de cookies `.Xauthority`.
+* **Solución**: 
+  1. Montar los volúmenes con banderas de relabeling compartido de SELinux (`:ro,z`).
+  2. En `docker-compose.yml`, deshabilitar específicamente el confinamiento de etiquetas de SELinux para el contenedor del frontend agregando la directiva:
+     ```yaml
+     security_opt:
+       - label=disable
+     ```
+  3. Ejecutar `xhost +local:` en el host y arrancar el stack pasando explícitamente la variable de display activa: `DISPLAY=$DISPLAY docker compose up`.
+
+### 5. `Merge this RUN instruction with the consecutive ones (docker:S7031)`
+* **Causa**: SonarQube y los linters de Docker marcan como error tener sentencias `RUN` consecutivas no separadas por otras directivas, ya que crean capas de imagen innecesarias.
+* **Solución**: Agrupar todas las ejecuciones lógicas continuas (como compilar, copiar dependencias y gestionar usuarios) dentro de un único bloque `RUN` encadenado con operadores `&& \`.
+
+### 6. `No inputs were found in config file 'tsconfig.json'`
+* **Causa**: TypeScript lanza un error crítico si detecta un archivo de configuración `tsconfig.json` en directorios de utilidades (como `.mcp/`) pero no encuentra directorios de código fuente TypeScript (`src/`) válidos o con archivos `.ts` en su interior.
+* **Solución**: Añadir un archivo dummy como `.mcp/src/index.ts` para satisfacer las rutas definidas en el config y resolver la advertencia en el IDE.
