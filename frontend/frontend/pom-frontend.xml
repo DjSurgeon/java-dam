@@ -79,6 +79,10 @@
               <noManPages>true</noManPages>
               <stripDebug>true</stripDebug>
               <noHeaderFiles>true</noHeaderFiles>
+              <options>
+                <option>-Dprism.order=sw</option>
+                <option>-Dprism.verbose=true</option>
+              </options>
             </configuration>
           </execution>
         </executions>

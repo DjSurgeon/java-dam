@@ -1,0 +1,29 @@
+# Ignore directories of target output
+**/target/
+**/build/
+**/dist/
+
+# Ignore local Maven wrapper
+**/mvnw
+**/mvnw.cmd
+**/.mvn/
+
+# Version Control and IDE
+.git
+.github
+.idea
+.vscode
+*.iml
+*.ipr
+*.iws
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Documentation and temporary files
+docs/
+skills/
+*.log
+.mcp/
+mcp.json

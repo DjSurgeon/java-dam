@@ -15,7 +15,7 @@ Este archivo es un **Skill File** de ejecución directa para la IA. Define las r
 ## 🗄️ 2. Base de Datos (MySQL)
 - **Imagen Base**: Utilizar `mysql:8.0` o una versión específica menor de la familia 8.0 (ej. `mysql:8.0.40`).
 - **Persistencia**: Montar un volumen con nombre (`db_data`) en la ruta `/var/lib/mysql`.
-- **Inicialización**: Montar el script `./database/schema.sql` en `/docker-entrypoint-initdb.d/schema.sql` para que MySQL cree las tablas automáticamente al levantar por primera vez.
+- **Inicialización**: Montar el script `./database/schema.sql` en `/docker-entrypoint-initdb.d/schema.sql` usando el flag de lectura y contexto compartido (`:ro,z`) para que MySQL cree las tablas automáticamente al levantar por primera vez, garantizando la compatibilidad con sistemas con SELinux activado (como Fedora, RHEL, CentOS).
 - **Control de Salud (Healthcheck)**:
   ```yaml
   healthcheck:
@@ -39,12 +39,15 @@ Este archivo es un **Skill File** de ejecución directa para la IA. Define las r
 ---
 
 ## 🖥️ 4. Frontend (JavaFX 21 GUI)
-- **Imagen Base**: Usar una imagen Alpine específica con JavaFX integrado: `bellsoft/liberica-openjdk-alpine-with-javafx:21.0.4`.
+- **Imagen Base**: Usar la imagen oficial `eclipse-temurin:21-jdk` (basada en Ubuntu). Se requiere la instalación manual de librerías de runtime de X11 y OpenGL (`libgtk-3-0`, `libgl1`, `libglx-mesa0`, `libx11-6`, `libxext6`, `libxrender1`, `libxi6`, `libxtst6`, `libasound2t64`, etc.) debido a que JavaFX depende de ellas para cargar sus binarios nativos, siendo incompatible con entornos Alpine/musl.
 - **X11 Forwarding (Ejecución de GUI)**:
-  - Para que la ventana JavaFX se renderice en el monitor del host Linux:
-    - En la configuración del servicio, inyectar la variable de entorno `DISPLAY=${DISPLAY}`.
-    - Montar el socket de X11 del host en modo lectura: `/tmp/.X11-unix:/tmp/.X11-unix:ro`.
-    - Usar la opción `network_mode: host` en Docker Compose para simplificar el mapeo del socket gráfico en entornos de desarrollo Linux locales.
+  - Para que la ventana JavaFX se renderice en el monitor del host Linux de forma segura y autorizada:
+    - En la configuración del servicio, inyectar las variables de entorno `DISPLAY=${DISPLAY:-:0}`, `XAUTHORITY=/home/developer/.Xauthority`, `QT_X11_NO_MITSHM=1` y `NO_AT_BRIDGE=1`.
+    - Montar el socket de X11 del host: `/tmp/.X11-unix:/tmp/.X11-unix:ro,z`.
+    - Montar el archivo de cookies de autorización X11 del host: `${XAUTHORITY:-~/.Xauthority}:/home/developer/.Xauthority:ro,z`.
+    - Usar la opción `network_mode: host` y desactivar el etiquetado restrictivo de SELinux con `security_opt: [ "label=disable" ]` en Docker Compose para simplificar y autorizar el mapeo del socket gráfico en entornos de desarrollo Linux locales.
+    - **Usuario No-Root y UIDs**: Crear y usar un usuario (`USER developer` con UID/GID `1000:1000`) dentro del contenedor que coincida con el UID del usuario del host para evitar fallos de denegación de conexión por parte del servidor X11. Si la imagen base contiene un usuario por defecto (como `ubuntu` con UID 1000), este debe ser eliminado previamente con `userdel -f ubuntu` y `groupdel ubuntu` para evitar errores durante el proceso de construcción.
+    - **Estrategia de Ejecución en Contenedores**: Para evitar que el plugin `javafx-maven-plugin` de Maven realice un *fork* del subproceso (ocultando salidas y devorando variables de entorno), se debe compilar el código (`clean compile`) y copiar las dependencias (`dependency:copy-dependencies`) en la fase de construcción de la imagen Docker. En tiempo de ejecución (CMD), la aplicación se debe iniciar directamente con el comando `java` configurando la opción `--module-path` y pasándole el parámetro de renderizado por software `-Dprism.order=sw`.
 
 ### 🐧 Comandos del Host (Preparación obligatoria)
 Antes de ejecutar `docker compose up`, el usuario debe preparar el servidor X11 del host ejecutando en su terminal local:

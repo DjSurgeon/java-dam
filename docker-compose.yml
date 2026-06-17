@@ -1,0 +1,56 @@
+services:
+  db:
+    image: mysql:8.0.40
+    container_name: hambooking-db
+    ports:
+      - "3307:3306"
+    volumes:
+      - db_data:/var/lib/mysql
+      - ./database/schema.sql:/docker-entrypoint-initdb.d/schema.sql:ro,z
+    environment:
+      MYSQL_ROOT_PASSWORD: sergio1234
+      MYSQL_DATABASE: hambooking
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-psergio1234"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  backend:
+    build:
+      context: ./backend/backend
+      dockerfile: Dockerfile
+    container_name: hambooking-backend
+    ports:
+      - "8080:8080"
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:mysql://db:3306/hambooking?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true
+      - SPRING_DATASOURCE_USERNAME=root
+      - SPRING_DATASOURCE_PASSWORD=sergio1234
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/frontend/Dockerfile
+    container_name: hambooking-frontend
+    # Usar red de host local para facilitar la integración de la UI gráfica X11 en Linux
+    network_mode: host
+    security_opt:
+      - label=disable
+    environment:
+      - DISPLAY=${DISPLAY:-:0}
+      - XAUTHORITY=/home/developer/.Xauthority
+      - QT_X11_NO_MITSHM=1
+      - NO_AT_BRIDGE=1
+    volumes:
+      - /tmp/.X11-unix:/tmp/.X11-unix:ro,z
+      - ${XAUTHORITY:-~/.Xauthority}:/home/developer/.Xauthority:ro,z
+    depends_on:
+      - backend
+
+volumes:
+  db_data:
