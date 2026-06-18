@@ -39,36 +39,33 @@ Antes de modificar una clase de lógica de negocio o un controlador, pídele a l
 Consulta las directrices más actualizadas en caliente. Si estás sin conexión (entornos aislados como el sandbox), el MCP recurrirá automáticamente al fallback offline de la memoria local en `memory.json`.
 *   **Prompt ejemplo:** *"Usa `fetch_official_docs` para buscar las mejores prácticas de 'multi-stage' en el tema 'docker'."*
 
-### Paso C: Auditoría Clean Code frente a Mandatos
-Antes de realizar cualquier cambio, audita la clase actual para identificar deudas técnicas y asegurar el cumplimiento de `GEMINI.md`.
-*   **Prompt ejemplo:** *"Ejecuta `check_clean_code` en la entidad `Reservation` y dime si cumple con todas las reglas de Javadoc, comentarios inline y FetchType.LAZY."*
+### Paso C: Auditoría Clean Code frente a Mandatos (Java y TypeScript/React)
+Antes de realizar cualquier cambio, audita el archivo o componente para identificar deudas técnicas y asegurar el cumplimiento de `GEMINI.md` y las reglas FSD.
+*   **Para Java:** *"Ejecuta `check_clean_code` en la entidad `Reservation` y dime si cumple con todas las reglas de Javadoc, comentarios inline y FetchType.LAZY."*
+*   **Para React/TypeScript:** *"Ejecuta `check_clean_code` en el componente `Logo` o `Navbar` para verificar reglas FSD, ausencia de 'any' e importaciones relativas permitidas."*
 
-### Paso D: Generación de Casos de Prueba (JUnit 5 + Mockito)
+### Paso D: Generación de Casos de Prueba (JUnit 5 / Vitest)
 Si vas a refactorizar o agregar lógica, asegura la suite de pruebas. Si la clase no tiene suficientes tests, pídele al MCP que diseñe la estructura de pruebas.
-*   **Prompt ejemplo:** *"Usa `propose_java_tests` para la clase `AvailabilityService` y genera la estructura básica en JUnit 5 y Mockito para sus métodos."*
+*   **Para Java:** *"Usa `propose_java_tests` para la clase `AvailabilityService` y genera la estructura básica en JUnit 5 y Mockito para sus métodos."*
+*   **Para React:** *"Usa `propose_web_tests` para el componente `Logo` y genera el esqueleto de pruebas para Vitest y React Testing Library."*
 
-### Paso E: Aprendizaje Dinámico (Memoria Local)
-Cuando descubras una buena práctica específica del proyecto o una lección aprendida durante la refactorización, guárdala en el archivo `.mcp/memory.json` para que esté disponible para siempre.
-*   **Prompt ejemplo:** *"Usa `remember_concept` para guardar como 'project_lessons' la regla: 'Las contraseñas siempre se codifican con BCrypt antes de guardarse en el UserService', con el tag 'security'."*
-*   **Para buscar en memoria:** *"Usa `recall_concepts` con el tag 'security' o buscando 'BCrypt'."*
+### Paso E: Dockerización Inteligente y Rápida
+Genera configuraciones óptimas de despliegue analizando la memoria local y las mejores prácticas acumuladas (incluyendo el nuevo frontend React).
+*   **Prompt ejemplo:** *"Ejecuta `propose_docker_configs` para obtener las plantillas multi-stage del backend, frontend JavaFX, base de datos MySQL y frontend web React."*
 
-### Paso F: Dockerización Inteligente y Rápida
-Genera configuraciones óptimas de despliegue analizando la memoria local y las mejores prácticas acumuladas.
-*   **Prompt ejemplo:** *"Ejecuta `propose_docker_configs` para obtener las plantillas multi-stage del backend, frontend JavaFX y base de datos MySQL."*
-
-### Paso G: Refactorización y Verificación Automática (Blindaje)
+### Paso F: Refactorización y Verificación Automática (Blindaje)
 Aplica los cambios en el código. Al finalizar una iteración de refactorización, pídele a la IA que verifique la suite completa de forma automatizada.
-*   **Prompt ejemplo:** *"He terminado de refactorizar. Ejecuta `run_maven_tests` para comprobar que la suite de 496 pruebas unitarias sigue pasando en verde."*
-
-### Paso H: Comprobaciones de Base de Datos y Datos Reales
-Si necesitas validar si una regla de negocio se está insertando correctamente en caliente, puedes realizar consultas de solo lectura a la base de datos MySQL local desde el chat de la IA.
-*   **Prompt ejemplo:** *"Usa `analyze_database` con la acción `query` para verificar las últimas 5 reservas guardadas en la tabla `reservations` y ver si sus estados coinciden."*
+*   **Para Java:** *"He terminado de refactorizar. Ejecuta `run_maven_tests` para comprobar que la suite de pruebas unitarias sigue pasando en verde."*
+*   **Para React:** *"Ejecuta `run_web_tests` para verificar que todas las pruebas de Vitest del frontend web están pasando."*
 
 ---
 
-## 💡 3. Buenas Prácticas y Consejos
+## 💡 3. Herramientas Web Incorporadas
 
-1.  **Aislamiento:** Este MCP solo lee y actúa sobre este repositorio. No se verá afectado ni contaminará otros workspaces o entornos de tu máquina.
-2.  **Seguridad SQL:** La herramienta `analyze_database` cuenta con protección regex. Solo ejecutará sentencias que comiencen con `SELECT`, `SHOW`, `DESCRIBE` o `EXPLAIN`. No es posible inyectar `DROP`, `DELETE` o `UPDATE` accidentales a través del MCP.
-3.  **Logs en Tiempo Real:** Las salidas estándar de error (`stderr`) del comando `./mvnw test` se transmiten en tiempo real a la consola de la IA, permitiéndote ver exactamente qué test falló sin necesidad de cambiar de terminal.
-4.  **Uso de la Memoria en Git:** El archivo `.mcp/memory.json` forma parte del repositorio. Cuando la IA "aprenda" una regla y la guarde, hazle commit para que otros desarrolladores (o futuras sesiones de la IA) también tengan acceso a ese conocimiento.
+- `run_web_tests`: Ejecuta `vitest run` de forma no interactiva para validar el frontend React en el directorio `frontend-web`.
+- `propose_web_tests`: Proporciona una plantilla de testing robusta con Vitest y React Testing Library adaptada a la lógica del componente React analizado.
+- `check_clean_code`: Extendido para analizar archivos `.ts` y `.tsx`. Revisa:
+  1. No usar comentarios inline (`//`) para documentación primaria.
+  2. No usar el tipo prohibido `any`.
+  3. No usar importaciones relativas hacia directorios superiores (`../`).
+  4. Respetar estrictamente la jerarquía descendente FSD (`app > pages > widgets > features > entities > shared`).

@@ -7,6 +7,7 @@ import https from 'https';
 const PROJECT_ROOT = '/home/sergio/vscode/java-dam';
 const BACKEND_DIR = path.join(PROJECT_ROOT, 'backend/backend');
 const FRONTEND_DIR = path.join(PROJECT_ROOT, 'frontend/frontend');
+const WEB_DIR = path.join(PROJECT_ROOT, 'frontend-web');
 const DATABASE_DIR = path.join(PROJECT_ROOT, 'database');
 const DOCS_DIR = path.join(PROJECT_ROOT, 'docs');
 const MEMORY_FILE = path.join(PROJECT_ROOT, '.mcp/memory.json');
@@ -45,7 +46,7 @@ function handleRequest(req) {
         },
         serverInfo: {
           name: 'hambooking-mcp-server',
-          version: '1.1.0'
+          version: '1.2.0'
         }
       });
 
@@ -127,6 +128,14 @@ function getToolsList() {
       }
     },
     {
+      name: "run_web_tests",
+      description: "Ejecuta los tests unitarios y de componentes en el frontend web utilizando Vitest en modo ejecución única sin watch.",
+      inputSchema: {
+        type: "object",
+        properties: {}
+      }
+    },
+    {
       name: "analyze_database",
       description: "Permite analizar el modelo de datos de la aplicación leyendo el DDL (schema.sql) o ejecutando consultas SELECT de solo lectura contra MySQL local.",
       inputSchema: {
@@ -160,14 +169,28 @@ function getToolsList() {
       }
     },
     {
-      name: "check_clean_code",
-      description: "Verifica si una clase Java cumple con las reglas del archivo GEMINI.md: Javadoc en métodos/clases/atributos públicos, ausencia de comentarios inline (//) y FetchType.LAZY obligatorio en asociaciones JPA.",
+      name: "propose_web_tests",
+      description: "Genera un esqueleto de pruebas unitarias/componentes usando Vitest y React Testing Library para un componente o utilidad TypeScript dada.",
       inputSchema: {
         type: "object",
         properties: {
           className: {
             type: "string",
-            description: "Nombre de la clase Java a analizar (ej: 'ReservationService')"
+            description: "Nombre del componente o módulo TypeScript (ej: 'Logo')"
+          }
+        },
+        required: ["className"]
+      }
+    },
+    {
+      name: "check_clean_code",
+      description: "Verifica si una clase Java o componente TypeScript/React cumple con las reglas y mandatos del proyecto (JPA LAZY, Javadoc, comentarios inline, no 'any', arquitectura FSD, etc.).",
+      inputSchema: {
+        type: "object",
+        properties: {
+          className: {
+            type: "string",
+            description: "Nombre del archivo, componente o clase a analizar (ej: 'ReservationService' o 'Logo')"
           }
         },
         required: ["className"]
@@ -247,7 +270,7 @@ function getToolsList() {
     },
     {
       name: "propose_docker_configs",
-      description: "Genera plantillas recomendadas de Dockerfile (para Backend y Frontend JavaFX) y docker-compose.yml adaptadas al proyecto a partir de la memoria acumulada.",
+      description: "Genera plantillas recomendadas de Dockerfile (Backend, JavaFX y React) y docker-compose.yml adaptadas al proyecto a partir de la memoria acumulada.",
       inputSchema: {
         type: "object",
         properties: {}
@@ -274,12 +297,20 @@ async function executeTool(id, name, args) {
         responseText = await handleRunMavenTests();
         break;
 
+      case 'run_web_tests':
+        responseText = await handleRunWebTests();
+        break;
+
       case 'analyze_database':
         responseText = handleAnalyzeDatabase(args.action, args.sqlQuery);
         break;
 
       case 'propose_java_tests':
         responseText = handleProposeJavaTests(args.className);
+        break;
+
+      case 'propose_web_tests':
+        responseText = handleProposeWebTests(args.className);
         break;
 
       case 'check_clean_code':
@@ -359,7 +390,7 @@ function handleReadDocs(file) {
   }
 }
 
-// Helper to find a Java class recursively
+// Helper to find a Java file recursively
 function findJavaFile(dir, className) {
   if (!fs.existsSync(dir)) return null;
   const files = fs.readdirSync(dir);
@@ -370,6 +401,23 @@ function findJavaFile(dir, className) {
       const found = findJavaFile(fullPath, className);
       if (found) return found;
     } else if (file === `${className}.java`) {
+      return fullPath;
+    }
+  }
+  return null;
+}
+
+// Helper to find a TypeScript/React file recursively
+function findWebFile(dir, className) {
+  if (!fs.existsSync(dir)) return null;
+  const files = fs.readdirSync(dir);
+  for (const file of files) {
+    const fullPath = path.join(dir, file);
+    const stat = fs.statSync(fullPath);
+    if (stat.isDirectory()) {
+      const found = findWebFile(fullPath, className);
+      if (found) return found;
+    } else if (file === `${className}.tsx` || file === `${className}.ts`) {
       return fullPath;
     }
   }
@@ -419,13 +467,49 @@ function handleRunMavenTests() {
         line.includes('Tests run:') || line.includes('BUILD SUCCESS') || line.includes('BUILD FAILURE')
       );
       
-      resolve(`=== Resultado de la suite de pruebas: ${statusText} (Código de salida: ${code}) ===\n\n` +
+      resolve(`=== Resultado de la suite de pruebas Java: ${statusText} (Código de salida: ${code}) ===\n\n` +
         `Resumen de ejecución:\n${summaryLines.join('\n')}\n\n` +
         `Si hubo fallos, revisa la consola para ver los detalles del error.`);
     });
 
     child.on('error', (err) => {
       reject(new Error(`No se pudo arrancar ./mvnw: ${err.message}`));
+    });
+  });
+}
+
+// 3.5 run_web_tests
+function handleRunWebTests() {
+  return new Promise((resolve, reject) => {
+    console.error("[MCP Server] Iniciando ejecución de tests web con npm run test...");
+    
+    // Ejecutamos Vitest en modo "run" (no-watch) para ejecución única en CI/IDE
+    const child = spawn('npx', ['vitest', 'run'], { cwd: WEB_DIR });
+
+    let stdout = '';
+    let stderr = '';
+
+    child.stdout.on('data', (data) => {
+      const chunk = data.toString();
+      stdout += chunk;
+      process.stderr.write(chunk);
+    });
+
+    child.stderr.on('data', (data) => {
+      const chunk = data.toString();
+      stderr += chunk;
+      process.stderr.write(chunk);
+    });
+
+    child.on('close', (code) => {
+      const statusText = code === 0 ? "ÉXITO" : "FALLÓ";
+      resolve(`=== Resultado de la suite de pruebas Web: ${statusText} (Código de salida: ${code}) ===\n\n` +
+        `Salida estándar:\n${stdout}\n\n` +
+        `Salida de error (si aplica):\n${stderr}`);
+    });
+
+    child.on('error', (err) => {
+      reject(new Error(`No se pudo arrancar vitest: ${err.message}`));
     });
   });
 }
@@ -547,62 +631,165 @@ function handleProposeJavaTests(className) {
     `\`\`\`java\n${testClass}\`\`\``;
 }
 
+// 5.5 propose_web_tests
+function handleProposeWebTests(className) {
+  const webFile = findWebFile(path.join(WEB_DIR, 'src'), className);
+  if (!webFile) {
+    return `No se encontró el componente/archivo '${className}' en frontend-web/src para proponer pruebas.`;
+  }
+
+  const content = fs.readFileSync(webFile, 'utf-8');
+  const isReact = content.includes('React') || content.includes('import') || content.includes('export');
+
+  let testCode = '';
+  if (isReact) {
+    testCode = `import { describe, it, expect, vi } from 'vitest';
+import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import React from 'react';
+import { ${className} } from './${className}'; // Ajustar ruta según corresponda
+
+describe('${className} Component', () => {
+  it('debería renderizarse correctamente', () => {
+    render(<${className} />);
+    // TODO: Agregar aserciones correspondientes
+  });
+
+  it('debería responder a las interacciones del usuario', async () => {
+    const user = userEvent.setup();
+    render(<${className} />);
+    // TODO: Simular interacciones
+  });
+});
+`;
+  } else {
+    testCode = `import { describe, it, expect } from 'vitest';
+import { ${className} } from './${className}';
+
+describe('${className}', () => {
+  it('debería ejecutar su lógica correctamente', () => {
+    // TODO: Implementar prueba unitaria pura
+  });
+});
+`;
+  }
+
+  return `=== Propuesta de Pruebas Unitarias Web para ${className} ===\n\n` +
+    `Aquí tienes el esqueleto sugerido para tus tests usando Vitest y React Testing Library. Créalo como '${className}.test.tsx' en el mismo directorio:\n\n` +
+    `\`\`\`tsx\n${testCode}\`\`\``;
+}
+
 // 6. check_clean_code
 function handleCheckCleanCode(className) {
   const backendFile = findJavaFile(BACKEND_DIR, className);
   const frontendFile = findJavaFile(FRONTEND_DIR, className);
-  const foundFile = backendFile || frontendFile;
+  const webFile = findWebFile(path.join(WEB_DIR, 'src'), className);
+  const foundFile = backendFile || frontendFile || webFile;
 
   if (!foundFile) {
-    return `No se encontró la clase '${className}' en el backend ni en el frontend para realizar auditoría.`;
+    return `No se encontró la clase o componente '${className}' en el backend, frontend JavaFX ni en el frontend Web.`;
   }
 
   const content = fs.readFileSync(foundFile, 'utf-8');
   const lines = content.split('\n');
   const issues = [];
-  
-  let inlineCommentCount = 0;
-  lines.forEach((line, idx) => {
-    if (line.includes('//') && !line.match(/https?:\/\//)) {
-      inlineCommentCount++;
-      issues.push(`Línea ${idx + 1}: Comentario inline detectado: "${line.trim()}" (Mandato: No usar // para documentación primaria).`);
-    }
-  });
+  const isWeb = foundFile.endsWith('.ts') || foundFile.endsWith('.tsx');
 
-  const classDeclIdx = lines.findIndex(line => line.match(/(class|interface|enum)\s+\w+/));
-  if (classDeclIdx !== -1) {
-    let hasJavadoc = false;
-    for (let i = Math.max(0, classDeclIdx - 5); i < classDeclIdx; i++) {
-      if (lines[i].includes('/**') || lines[i].includes('*')) {
-        hasJavadoc = true;
-        break;
+  if (isWeb) {
+    // TypeScript & React FSD Audit
+    let inlineCommentCount = 0;
+    lines.forEach((line, idx) => {
+      // Inline comments check
+      if (line.includes('//') && !line.match(/https?:\/\//)) {
+        inlineCommentCount++;
+        issues.push(`Línea ${idx + 1}: Comentario inline detectado: "${line.trim()}" (Mandato: No usar // para documentación primaria).`);
+      }
+      
+      // Strict TypeScript: no 'any'
+      if (/\bany\b/.test(line) && !line.includes('//') && !line.includes('*')) {
+        issues.push(`Línea ${idx + 1}: Uso del tipo 'any' detectado: "${line.trim()}" (Mandato TS: estricto, no usar 'any').`);
+      }
+
+      // FSD Architecture Path Aliases Check
+      if (/import\s+.*\s+from\s+['"]\.\.?\//.test(line)) {
+        if (line.includes("'../") || line.includes('"../')) {
+          issues.push(`Línea ${idx + 1}: Importación relativa hacia niveles superiores detectada: "${line.trim()}" (Mandato: Usar el alias absoluto '@/' para importar fuera del slice).`);
+        }
+      }
+
+      // FSD Layers Strictly Downward Import Rules
+      // Layers: app > pages > widgets > features > entities > shared
+      const layers = ['app', 'pages', 'widgets', 'features', 'entities', 'shared'];
+      const fileLayer = layers.find(l => foundFile.includes(`/src/${l}/`));
+      if (fileLayer) {
+        const fileLayerIndex = layers.indexOf(fileLayer);
+        layers.slice(0, fileLayerIndex).forEach(higherLayer => {
+          if (line.includes(`@/${higherLayer}/`) || line.includes(`from '@/${higherLayer}`)) {
+            issues.push(`Línea ${idx + 1}: Violación FSD detectada. El archivo en '${fileLayer}' no debe importar de una capa superior '${higherLayer}': "${line.trim()}".`);
+          }
+        });
+      }
+    });
+
+    if (issues.length === 0) {
+      return `=== Auditoría Clean Code Web: ${className} ===\n\n` +
+        `¡Excelente! No se encontraron desviaciones respecto a los mandatos FSD/TS de GEMINI.md.\n` +
+        `- Sin comentarios inline (//) sospechosos.\n` +
+        `- Sin tipos 'any'.\n` +
+        `- Importaciones relativas limpias y alineadas con FSD.\n` +
+        `- Respeto estricto del orden descendente de capas FSD.`;
+    }
+
+    return `=== Auditoría Clean Code Web: ${className} ===\n\n` +
+      `Se encontraron ${issues.length} advertencias según los mandatos FSD/TS:\n\n` +
+      issues.map(issue => `- ${issue}`).join('\n') + `\n\n` +
+      `Recomendación: Refactoriza el componente/archivo para cumplir con la arquitectura FSD y estándares TS.`;
+
+  } else {
+    // Java audit
+    let inlineCommentCount = 0;
+    lines.forEach((line, idx) => {
+      if (line.includes('//') && !line.match(/https?:\/\//)) {
+        inlineCommentCount++;
+        issues.push(`Línea ${idx + 1}: Comentario inline detectado: "${line.trim()}" (Mandato: No usar // para documentación primaria).`);
+      }
+    });
+
+    const classDeclIdx = lines.findIndex(line => line.match(/(class|interface|enum)\s+\w+/));
+    if (classDeclIdx !== -1) {
+      let hasJavadoc = false;
+      for (let i = Math.max(0, classDeclIdx - 5); i < classDeclIdx; i++) {
+        if (lines[i].includes('/**') || lines[i].includes('*')) {
+          hasJavadoc = true;
+          break;
+        }
+      }
+      if (!hasJavadoc) {
+        issues.push(`Clase principal '${className}': No tiene Javadoc decorativo (/** ... */) en la declaración.`);
       }
     }
-    if (!hasJavadoc) {
-      issues.push(`Clase principal '${className}': No tiene Javadoc decorativo (/** ... */) en la declaración.`);
-    }
-  }
 
-  lines.forEach((line, idx) => {
-    if (line.includes('@OneToMany') || line.includes('@ManyToMany') || line.includes('@ManyToOne') || line.includes('@OneToOne')) {
-      if (!line.includes('FetchType.LAZY') && !line.includes('fetch = FetchType.LAZY')) {
-        issues.push(`Línea ${idx + 1}: Asociación JPA detectada sin FetchType.LAZY explícito: "${line.trim()}" (Mandato: usar LAZY por defecto).`);
+    lines.forEach((line, idx) => {
+      if (line.includes('@OneToMany') || line.includes('@ManyToMany') || line.includes('@ManyToOne') || line.includes('@OneToOne')) {
+        if (!line.includes('FetchType.LAZY') && !line.includes('fetch = FetchType.LAZY')) {
+          issues.push(`Línea ${idx + 1}: Asociación JPA detectada sin FetchType.LAZY explícito: "${line.trim()}" (Mandato: usar LAZY por defecto).`);
+        }
       }
+    });
+
+    if (issues.length === 0) {
+      return `=== Auditoría Clean Code Java: ${className} ===\n\n` +
+        `¡Excelente! No se encontraron desviaciones respecto a los mandatos de GEMINI.md.\n` +
+        `- Cumple con Javadoc obligatorio.\n` +
+        `- Sin comentarios inline (//) sospechosos.\n` +
+        `- Todas las asociaciones JPA usan FetchType.LAZY.`;
     }
-  });
 
-  if (issues.length === 0) {
-    return `=== Auditoría Clean Code: ${className} ===\n\n` +
-      `¡Excelente! No se encontraron desviaciones respecto a los mandatos de GEMINI.md.\n` +
-      `- Cumple con Javadoc obligatorio.\n` +
-      `- Sin comentarios inline (//) sospechosos.\n` +
-      `- Todas las asociaciones JPA usan FetchType.LAZY.`;
+    return `=== Auditoría Clean Code Java: ${className} ===\n\n` +
+      `Se encontraron ${issues.length} advertencias según los mandatos de GEMINI.md:\n\n` +
+      issues.map(issue => `- ${issue}`).join('\n') + `\n\n` +
+      `Recomendación: Refactoriza la clase para corregir estos puntos antes de finalizar tu commit.`;
   }
-
-  return `=== Auditoría Clean Code: ${className} ===\n\n` +
-    `Se encontraron ${issues.length} advertencias según los mandatos de GEMINI.md:\n\n` +
-    issues.map(issue => `- ${issue}`).join('\n') + `\n\n` +
-    `Recomendación: Refactoriza la clase para corregir estos puntos antes de finalizar tu commit.`;
 }
 
 // 7. fetch_official_docs
@@ -765,25 +952,32 @@ function handleProposeDockerConfigs() {
   
   const rulesSummary = dockerRules.map(rule => `- **${rule.title}**: ${rule.description}`).join('\n');
   
-  // Custom template generation using preloaded rules
   const backendRule = dockerRules.find(r => r.id === 'db-1');
-  const mysqlRule = dockerRules.find(r => r.id === 'db-2');
-  const javafxRule = dockerRules.find(r => r.id === 'db-3');
-  const ignoreRule = dockerRules.find(r => r.id === 'db-4');
 
   return `=== Propuesta de Configuración Docker para HamBooking ===\n\n` +
     `Basado en las reglas de Docker acumuladas en la memoria:\n${rulesSummary}\n\n` +
-    `Aquí tienes los archivos propuestos para la dockerización del entorno:\n\n` +
+    `Aquí tienes los archivos propuestos para la dockerización completa del entorno:\n\n` +
     `### 1. [NUEVO] backend/backend/Dockerfile (Multi-stage)\n` +
     `\`\`\`dockerfile\n${backendRule ? backendRule.content : '# Dockerfile backend sin datos'}\n\`\`\`\n\n` +
-    `### 2. [NUEVO] frontend/frontend/Dockerfile (JavaFX Development GUI)\n` +
-    `\`\`\`dockerfile\nFROM bellsoft/liberica-openjdk-alpine-with-javafx:21\n` +
+    `### 2. [NUEVO] frontend-web/Dockerfile (React + Vite + TS Multi-stage)\n` +
+    `\`\`\`dockerfile\n` +
+    `FROM node:20-alpine AS base\n` +
     `WORKDIR /app\n` +
-    `COPY pom.xml .\n` +
-    `COPY src ./src\n` +
-    `# Necesitarás correr mvnw javafx:run o compilar y ejecutar el jar\n` +
-    `CMD [\"./mvnw\", \"javafx:run\"]\n\`\`\`\n\n` +
-    `### 3. [NUEVO] docker-compose.yml (Raíz del proyecto)\n` +
+    `COPY package*.json ./\n` +
+    `RUN npm ci\n\n` +
+    `FROM base AS development\n` +
+    `COPY . .\n` +
+    `EXPOSE 3000\n` +
+    `CMD [\"npm\", \"run\", \"dev\"]\n\n` +
+    `FROM base AS builder\n` +
+    `COPY . .\n` +
+    `RUN npm run build\n\n` +
+    `FROM nginx:stable-alpine AS production\n` +
+    `COPY --from=builder /app/dist /usr/share/nginx/html\n` +
+    `EXPOSE 80\n` +
+    `CMD [\"nginx\", \"-g\", \"daemon off;\"]\n` +
+    `\`\`\`\n\n` +
+    `### 3. [MODIFICADO] docker-compose.yml (Raíz del proyecto)\n` +
     `\`\`\`yaml\n` +
     `version: '3.8'\n\n` +
     `services:\n` +
@@ -794,7 +988,7 @@ function handleProposeDockerConfigs() {
     `      - \"3306:3306\"\n` +
     `    volumes:\n` +
     `      - db_data:/var/lib/mysql\n` +
-    `      - ./database/schema.sql:/docker-entrypoint-initdb.d/schema.sql\n` +
+    `      - ./database/schema.sql:/docker-entrypoint-initdb.d/schema.sql:ro,z\n` +
     `    environment:\n` +
     `      MYSQL_DATABASE: hambooking\n` +
     `      MYSQL_ROOT_PASSWORD: sergio1234\n` +
@@ -802,7 +996,12 @@ function handleProposeDockerConfigs() {
     `      test: [\"CMD\", \"mysqladmin\", \"ping\", \"-h\", \"localhost\", \"-u\", \"root\", \"-psergio1234\"]\n` +
     `      interval: 10s\n` +
     `      timeout: 5s\n` +
-    `      retries: 5\n\n` +
+    `      retries: 5\n` +
+    `    deploy:\n` +
+    `      resources:\n` +
+    `        limits:\n` +
+    `          cpus: '1.0'\n` +
+    `          memory: 512M\n\n` +
     `  backend:\n` +
     `    build:\n` +
     `      context: ./backend/backend\n` +
@@ -815,21 +1014,29 @@ function handleProposeDockerConfigs() {
     `    environment:\n` +
     `      - SPRING_DATASOURCE_URL=jdbc:mysql://db:3306/hambooking\n` +
     `      - SPRING_DATASOURCE_USERNAME=root\n` +
-    `      - SPRING_DATASOURCE_PASSWORD=sergio1234\n\n` +
-    `  frontend:\n` +
+    `      - SPRING_DATASOURCE_PASSWORD=sergio1234\n` +
+    `    deploy:\n` +
+    `      resources:\n` +
+    `        limits:\n` +
+    `          cpus: '1.5'\n` +
+    `          memory: 1024M\n\n` +
+    `  frontend-web:\n` +
     `    build:\n` +
-    `      context: ./frontend/frontend\n` +
-    `    container_name: hambooking-frontend\n` +
-    `    environment:\n` +
-    `      - DISPLAY=\${DISPLAY}\n` +
+    `      context: ./frontend-web\n` +
+    `      target: development\n` +
+    `    container_name: hambooking-frontend-web\n` +
+    `    ports:\n` +
+    `      - \"3000:3000\"\n` +
     `    volumes:\n` +
-    `      - /tmp/.X11-unix:/tmp/.X11-unix:ro\n` +
-    `    network_mode: host\n` +
-    `    depends_on:\n` +
-    `      - backend\n\n` +
-    `volumes:\n` +
-    `  db_data:\n` +
-    `\`\`\`\n\n` +
-    `### 4. [NUEVO] .dockerignore\n` +
-    `\`\`\`text\n${ignoreRule ? ignoreRule.content : '# .dockerignore sin datos'}\n\`\`\``;
+    `      - ./frontend-web:/app:z\n` +
+    `      - /app/node_modules\n` +
+    `    depends_on:\n54` +
+    `      backend:\n` +
+    `        condition: service_started\n` +
+    `    deploy:\n` +
+    `      resources:\n` +
+    `        limits:\n` +
+    `          cpus: '1.5'\n` +
+    `          memory: 1024M\n` +
+    `\`\`\``;
 }

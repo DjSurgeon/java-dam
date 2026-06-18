@@ -16,6 +16,11 @@ services:
       timeout: 5s
       retries: 5
       start_period: 20s
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
 
   backend:
     build:
@@ -31,6 +36,11 @@ services:
       - SPRING_DATASOURCE_URL=jdbc:mysql://db:3306/hambooking?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true
       - SPRING_DATASOURCE_USERNAME=root
       - SPRING_DATASOURCE_PASSWORD=sergio1234
+    deploy:
+      resources:
+        limits:
+          cpus: '1.5'
+          memory: 1024M
 
   frontend:
     build:
@@ -51,6 +61,11 @@ services:
       - ${XAUTHORITY:-~/.Xauthority}:/home/developer/.Xauthority:ro,z
     depends_on:
       - backend
+    deploy:
+      resources:
+        limits:
+          cpus: '1.5'
+          memory: 1024M
 
   frontend-web:
     build:
@@ -67,6 +82,11 @@ services:
       - /app/node_modules
     depends_on:
       - backend
+    deploy:
+      resources:
+        limits:
+          cpus: '1.5'
+          memory: 1024M
 
 volumes:
   db_data:
